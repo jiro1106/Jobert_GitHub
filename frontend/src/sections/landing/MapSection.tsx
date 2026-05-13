@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MOCK_ROUTE_FORECAST } from "../../types/coverage";
-import MapComponent from "../../components/map/MapComponent";
+import MapComponent, {
+  type RouteMetricsFromMap,
+} from "../../components/map/MapComponent";
 import type { TravelMode } from "../../types/coverage";
 import { ArrowRight } from "lucide-react";
 
@@ -14,9 +16,21 @@ export default function MapSection() {
   const [searchParams] = useSearchParams();
   const fromParam = searchParams.get("from") ?? "";
   const toParam = searchParams.get("to") ?? "";
+  const [mapRouteMetrics, setMapRouteMetrics] =
+    useState<RouteMetricsFromMap | null>(null);
+
+  useEffect(() => {
+    setMapRouteMetrics(null);
+  }, [fromParam, toParam]);
+
   const hasRoute = Boolean(fromParam || toParam);
   const fromLabel = fromParam || "Pick a start";
   const toLabel = toParam || "Pick a destination";
+
+  const summaryDistanceKm =
+    mapRouteMetrics?.distanceKm ?? forecast.summary.distanceKm;
+  const summaryDrivingTimeMin =
+    mapRouteMetrics?.durationMin ?? forecast.summary.drivingTimeMin;
 
   return (
     <section id="coverage-map" className="block" data-section="route-forecast">
@@ -62,8 +76,13 @@ export default function MapSection() {
         <MapCard
           initialOriginText={fromParam || undefined}
           initialDestinationText={toParam || undefined}
+          onRouteMetrics={setMapRouteMetrics}
         />
-        <RouteSidebar forecast={forecast} />
+        <RouteSidebar
+          forecast={forecast}
+          summaryDistanceKm={summaryDistanceKm}
+          summaryDrivingTimeMin={summaryDrivingTimeMin}
+        />
       </div>
 
       <ForecastChart />
@@ -98,9 +117,11 @@ function ModeSegment() {
 function MapCard({
   initialOriginText,
   initialDestinationText,
+  onRouteMetrics,
 }: {
   initialOriginText?: string;
   initialDestinationText?: string;
+  onRouteMetrics?: (metrics: RouteMetricsFromMap | null) => void;
 }) {
   return (
     <div
@@ -117,6 +138,7 @@ function MapCard({
         <MapComponent
           initialOriginText={initialOriginText}
           initialDestinationText={initialDestinationText}
+          onRouteMetrics={onRouteMetrics}
         />
       </div>
     </div>
@@ -124,7 +146,15 @@ function MapCard({
 }
 
 /* ---- Route Sidebar ---- */
-function RouteSidebar({ forecast }: { forecast: typeof MOCK_ROUTE_FORECAST }) {
+function RouteSidebar({
+  forecast,
+  summaryDistanceKm,
+  summaryDrivingTimeMin,
+}: {
+  forecast: typeof MOCK_ROUTE_FORECAST;
+  summaryDistanceKm: number;
+  summaryDrivingTimeMin: number;
+}) {
   const { summary, recommendation, gaps } = forecast;
 
   return (
@@ -155,7 +185,7 @@ function RouteSidebar({ forecast }: { forecast: typeof MOCK_ROUTE_FORECAST }) {
             }}
             className="sm:text-[30px]!"
           >
-            {summary.distanceKm}
+            {summaryDistanceKm.toFixed(1)}
             <sub style={{ fontSize: 16, color: "var(--ink-4)", marginLeft: 4 }}>
               km
             </sub>
@@ -172,7 +202,7 @@ function RouteSidebar({ forecast }: { forecast: typeof MOCK_ROUTE_FORECAST }) {
           }}
         >
           <TripMetric
-            value={`${Math.floor(summary.drivingTimeMin / 60)}h ${summary.drivingTimeMin % 60}m`}
+            value={`${Math.floor(summaryDrivingTimeMin / 60)}h ${summaryDrivingTimeMin % 60}m`}
             label="Est. drive time"
           />
           <TripMetric

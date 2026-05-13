@@ -16,6 +16,11 @@ type Suggestion = {
   lon: string;
 };
 
+export type RouteMetricsFromMap = {
+  distanceKm: number;
+  durationMin: number;
+};
+
 type OriginMode = 'current' | 'typed' | 'pinned';
 type DestinationMode = 'typed' | 'pinned';
 
@@ -25,6 +30,7 @@ type Props = {
   initialOriginText?: string;
   initialDestinationText?: string;
   isFullscreen?: boolean;
+  onRouteMetrics?: (metrics: RouteMetricsFromMap | null) => void;
 };
 
 const MapSearchLeaflet: React.FC<Props> = ({
@@ -33,6 +39,7 @@ const MapSearchLeaflet: React.FC<Props> = ({
   initialOriginText,
   initialDestinationText,
   isFullscreen = false,
+  onRouteMetrics,
 }) => {
     const routingRef = useRef<any>(null);
     const destinationMarkerRef = useRef<L.Marker | null>(null);
@@ -40,7 +47,7 @@ const MapSearchLeaflet: React.FC<Props> = ({
     const destinationAbortRef = useRef<AbortController | null>(null);
     const originDebounceRef = useRef<number | null>(null);
     const originAbortRef = useRef<AbortController | null>(null);
-    const initialAppliedRef = useRef(false);
+    const onRouteMetricsRef = useRef(onRouteMetrics);
 
     const [query, setQuery] = useState('');
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -53,10 +60,12 @@ const MapSearchLeaflet: React.FC<Props> = ({
     const [destination, setDestination] = useState<LatLng | null>(null);
     const [destinationText, setDestinationText] = useState('');
     const [searchParams] = useSearchParams();
-    const initialFrom = searchParams.get("from");
-    const initialTo = searchParams.get("to");
+    const fromParam = searchParams.get('from')?.trim() ?? '';
+    const toParam = searchParams.get('to')?.trim() ?? '';
 
-  const geocodeLocation = async (value: string) => {
+  onRouteMetricsRef.current = onRouteMetrics;
+
+  const geocodeLocation = async (value: string, signal?: AbortSignal) => {
     const params = new URLSearchParams({
       q: value,
       format: 'json',
@@ -64,7 +73,9 @@ const MapSearchLeaflet: React.FC<Props> = ({
       limit: '1',
       countrycodes: 'ph',
     });
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+      signal,
+    });
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) return null;
     return {
@@ -138,21 +149,57 @@ const MapSearchLeaflet: React.FC<Props> = ({
   useEffect(() => {
     if (!map) return;
     if (!routingRef.current) {
-      const routing = (L as any).Routing;
-      routingRef.current = routing.control({
-        waypoints: [],
-        routeWhileDragging: false,
-        addWaypoints: false,
-        draggableWaypoints: false,
-        fitSelectedRoutes: true,
-        show: false,
-        lineOptions: {
-          styles: [
-            { color: '#2563EB', weight: 5, opacity: 0.9 },
-          ],
-        },
-      }).addTo(map);
+      const Routing = (L as unknown as { Routing: { control: (o: object) => unknown; osrmv1: (o: object) => unknown } }).Routing;
+      try {
+        routingRef.current = Routing.control({
+          router: Routing.osrmv1({
+            serviceUrl: 'https://routing.openstreetmap.de/routed-car/route/v1',
+            profile: 'driving',
+          }),
+          waypoints: [],
+          routeWhileDragging: false,
+          addWaypoints: false,
+          draggableWaypoints: false,
+          fitSelectedRoutes: true,
+          show: false,
+          lineOptions: {
+            styles: [
+              { color: '#2563EB', weight: 5, opacity: 0.9 },
+            ],
+          },
+        }).addTo(map);
+      } catch {
+        routingRef.current = null;
+      }
     }
+
+    if (!routingRef.current) return;
+
+    const routing = routingRef.current as L.Control & {
+      on: (type: string, fn: (e: unknown) => void) => void;
+      off: (type: string, fn: (e: unknown) => void) => void;
+    };
+
+    const handleRoutesFound = (e: unknown) => {
+      const evt = e as {
+        routes?: Array<{
+          summary?: { totalDistance?: number; totalTime?: number };
+        }>;
+      };
+      const summary = evt.routes?.[0]?.summary;
+      if (!summary || typeof summary.totalDistance !== 'number') return;
+      onRouteMetricsRef.current?.({
+        distanceKm: summary.totalDistance / 1000,
+        durationMin: Math.round((summary.totalTime ?? 0) / 60),
+      });
+    };
+
+    const handleRoutingError = () => {
+      onRouteMetricsRef.current?.(null);
+    };
+
+    routing.on('routesfound', handleRoutesFound);
+    routing.on('routingerror', handleRoutingError);
 
     const handleClick = (event: L.LeafletMouseEvent) => {
       const picked = { lat: event.latlng.lat, lng: event.latlng.lng };
@@ -177,6 +224,8 @@ const MapSearchLeaflet: React.FC<Props> = ({
 
     return () => {
       map.off('click', handleClick);
+      routing.off('routesfound', handleRoutesFound);
+      routing.off('routingerror', handleRoutingError);
       if (routingRef.current) {
         map.removeControl(routingRef.current);
         routingRef.current = null;
@@ -318,41 +367,46 @@ const MapSearchLeaflet: React.FC<Props> = ({
   }, [originMode, originQuery]);
 
   useEffect(() => {
-  if (!map) return;
-  if (initialAppliedRef.current) return;
-
-  const from = searchParams.get("from");
-  const to = searchParams.get("to");
-
-  if (!from && !to) return;
-
-  initialAppliedRef.current = true;
-
-  const run = async () => {
-    if (from) {
-      setOriginMode("typed");
-      const result = await geocodeLocation(from);
-
-      if (result) {
-        setOriginLocation({ lat: result.lat, lng: result.lng });
-        setOriginText(result.label);
-      }
+    if (!map) return;
+    if (!fromParam && !toParam) {
+      onRouteMetricsRef.current?.(null);
+      return;
     }
 
-    if (to) {
-      setDestinationMode("typed");
-      const result = await geocodeLocation(to);
+    const controller = new AbortController();
 
-      if (result) {
-        setDestination({ lat: result.lat, lng: result.lng });
-        setDestinationText(result.label);
-        map.setView([result.lat, result.lng], 12);
+    const run = async () => {
+      try {
+        if (fromParam) {
+          setOriginMode('typed');
+          const result = await geocodeLocation(fromParam, controller.signal);
+          if (controller.signal.aborted) return;
+          if (result) {
+            setOriginLocation({ lat: result.lat, lng: result.lng });
+            setOriginText(result.label);
+          }
+        } else {
+          setOriginMode('current');
+        }
+
+        if (toParam) {
+          setDestinationMode('typed');
+          const result = await geocodeLocation(toParam, controller.signal);
+          if (controller.signal.aborted) return;
+          if (result) {
+            setDestination({ lat: result.lat, lng: result.lng });
+            setDestinationText(result.label);
+            map.setView([result.lat, result.lng], 12);
+          }
+        }
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return;
       }
-    }
-  };
+    };
 
-  run();
-}, [map, searchParams]);
+    void run();
+    return () => controller.abort();
+  }, [map, fromParam, toParam]);
 
   const applyDestination = (suggestion: Suggestion) => {
     const selected = {

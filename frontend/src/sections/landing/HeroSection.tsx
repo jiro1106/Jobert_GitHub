@@ -94,7 +94,7 @@ export default function HeroSection() {
     const query = params.toString();
     navigate(query ? `/?${query}` : "/", { replace: true });
 
-    const target = document.getElementById("route-forecast");
+    const target = document.getElementById("coverage-map");
     if (target) {
       target.scrollIntoView({ behavior: "smooth", block: "start" });
       return;

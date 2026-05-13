@@ -7,8 +7,12 @@ import ProviderFilters from './controls/ProviderFilters';
 import type { Provider, SignalRange, Tower } from './types';
 import { PROVIDER_COLORS, PROVIDER_FILTER_STYLES } from './ui/providerColors';
 import towerData from '../../data/MockCelltowerData.json';
-import MapSearchLeaflet from './search/MapSearchLeaflet';
+import MapSearchLeaflet, {
+  type RouteMetricsFromMap,
+} from './search/MapSearchLeaflet';
 import HeatmapLayer from './HeatmapLayer';
+
+export type { RouteMetricsFromMap };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +29,7 @@ interface Props {
   onLocationChange?: (info: LocationInfo) => void;
   initialOriginText?: string;
   initialDestinationText?: string;
+  onRouteMetrics?: (metrics: RouteMetricsFromMap | null) => void;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -150,6 +155,7 @@ const MapComponent: React.FC<Props> = ({
   onLocationChange,
   initialOriginText,
   initialDestinationText,
+  onRouteMetrics,
 }) => {
   const mapRef = useRef<LeafletMap | null>(null);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
@@ -286,6 +292,7 @@ const MapComponent: React.FC<Props> = ({
             initialOriginText={initialOriginText}
             initialDestinationText={initialDestinationText}
             isFullscreen={isFullscreen}
+            onRouteMetrics={onRouteMetrics}
           />
 
           <MapSizeObserver map={mapInstance} isFullscreen={isFullscreen} />
@@ -295,13 +302,11 @@ const MapComponent: React.FC<Props> = ({
             center={[mapCenter.lat, mapCenter.lng]}
             zoom={mapZoom}
             style={{
-              ...mapContainerStyle,
-              height: '100%',
               width: '100%',
-              minHeight: '100%',
+              ...mapContainerStyle,
             }}
             zoomControl={false}
-            className="z-0 h-full w-full"
+            className="z-0 w-full"
           >
             <TileLayer
               url={tileLayer.url}
