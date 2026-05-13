@@ -1,21 +1,22 @@
 import { useState } from "react";
+import logo from "../assets/full_logo.png";
 
 const NAV_LINKS = [
-  { label: "Route forecast", active: true },
-  { label: "Coverage map", active: false },
-  { label: "Providers", active: false },
-  { label: "Community", active: false },
-  { label: "About", active: false },
+  { label: "Coverage Map", sectionId: "coverage-map" },
+  { label: "Providers", sectionId: "providers" },
+  { label: "Use Cases", sectionId: "use-cases" },
+  { label: "Community", sectionId: "community" },
 ];
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("coverage-map");
 
   return (
     <>
       <nav
         style={{
-          height: 56,
+          height: 80,
           background: "rgba(255,255,255,0.92)",
           backdropFilter: "blur(10px)",
           borderBottom: "1px solid var(--line)",
@@ -28,27 +29,19 @@ export default function Navbar() {
           zIndex: 50,
           gap: 12,
         }}
-        className="md:!h-[60px] md:!px-7"
+        className="md:!h-[80px] md:!px-7"
       >
         {/* Logo */}
-        <a href="#" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div className="logo-mark" />
-          <div
-            style={{ fontWeight: 800, fontSize: 15, letterSpacing: "-0.3px" }}
-          >
-            Signal<span style={{ color: "var(--brand)" }}>PH</span>
-          </div>
+        <a
+          href="#"
+          style={{ display: "flex", alignItems: "center", gap: 10 }}
+        >
+          <img
+            src={logo}
+            alt="SignalPH Logo"
+            style={{ height: 44, width: "auto" }}
+          />
         </a>
-
-        {/* Desktop nav links — hidden below 980px */}
-        <div
-          className="hidden items-center gap-1"
-          style={{ display: "none" }}
-          /* Tailwind hidden below lg handled via media query in inline approach */
-        />
-        <div style={{ display: "none" }} className="nav-mid-desktop">
-          {/* rendered via CSS below */}
-        </div>
 
         {/* Nav links via CSS class approach */}
         <div
@@ -59,30 +52,35 @@ export default function Navbar() {
           }}
           className="nav-links-desktop"
         >
-          {NAV_LINKS.map(({ label, active }) => (
-            <a
-              key={label}
-              href="#"
-              style={{
-                fontSize: 13,
-                color: active ? "var(--ink)" : "var(--ink-3)",
-                padding: "6px 12px",
-                borderRadius: 6,
-                fontWeight: 500,
-                background: active ? "var(--line-soft)" : "transparent",
-              }}
-            >
-              {label}
-            </a>
-          ))}
+          {NAV_LINKS.map(({ label, sectionId }) => {
+            const isActive = activeSection === sectionId;
+            return (
+              <a
+                key={label}
+                href="#"
+                style={{
+                  fontSize: 13,
+                  color: isActive ? "var(--ink)" : "var(--ink-3)",
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  fontWeight: 500,
+                  background: isActive ? "var(--line-soft)" : "transparent",
+                }}
+              >
+                {label}
+              </a>
+            );
+          })}
         </div>
 
         {/* Right actions */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div
+          id="nav-right"
+          style={{ display: "flex", gap: 8, alignItems: "center" }}
+        >
           {/* Location button — hidden on mobile */}
           <button className="btn" style={{ display: "none" }} id="btn-loc">
-            <LocationIcon />
-            Use my location
+            Contribute
           </button>
           <button className="btn btn-primary">Login</button>
           {/* Hamburger — hidden above 980px */}
@@ -120,23 +118,26 @@ export default function Navbar() {
           borderTop: "1px solid var(--line)",
         }}
       >
-        {NAV_LINKS.map(({ label, active }) => (
-          <a
-            key={label}
-            href="#"
-            onClick={() => setIsOpen(false)}
-            style={{
-              display: "block",
-              padding: "14px 4px",
-              fontSize: 16,
-              fontWeight: 600,
-              color: active ? "var(--brand)" : "var(--ink)",
-              borderBottom: "1px solid var(--line-soft)",
-            }}
-          >
-            {label}
-          </a>
-        ))}
+        {NAV_LINKS.map(({ label, sectionId }) => {
+          const isActive = activeSection === sectionId;
+          return (
+            <a
+              key={label}
+              href="#"
+              onClick={() => setIsOpen(false)}
+              style={{
+                display: "block",
+                padding: "14px 4px",
+                fontSize: 16,
+                fontWeight: 600,
+                color: isActive ? "var(--brand)" : "var(--ink)",
+                borderBottom: "1px solid var(--line-soft)",
+              }}
+            >
+              {label}
+            </a>
+          );
+        })}
         <div
           style={{
             marginTop: 16,
@@ -145,10 +146,7 @@ export default function Navbar() {
             gap: 8,
           }}
         >
-          <button className="btn">
-            <LocationIcon />
-            Use my location
-          </button>
+          <button className="btn">Contribute</button>
           <button className="btn btn-primary">Get the app</button>
         </div>
       </div>
@@ -156,7 +154,12 @@ export default function Navbar() {
       {/* Desktop nav links injection via style tag — media query approach */}
       <style>{`
         @media (min-width: 980px) {
-          .nav-links-desktop { display: flex !important; }
+          nav {
+            display: grid !important;
+            grid-template-columns: 1fr auto 1fr !important;
+          }
+          .nav-links-desktop { display: flex !important; justify-content: center; }
+          #nav-right { justify-self: end; }
           #hamburger { display: none !important; }
           #btn-loc { display: inline-flex !important; }
         }
