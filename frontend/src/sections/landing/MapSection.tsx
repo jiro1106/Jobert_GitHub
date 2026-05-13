@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MOCK_ROUTE_FORECAST } from '../../types/coverage';
-import GoogleMaps from '../../components/map/GoogleMaps';
+import GoogleMaps from '../../components/map/MapComponent';
 import type { TravelMode } from '../../types/coverage';
 
 /* ============================================================
