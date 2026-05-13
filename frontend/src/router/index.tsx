@@ -4,14 +4,12 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import ReportPage from "../pages/ReportPage";
-import MapsPage from "../pages/MapsPage";
 
 const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
       { path: "/", element: <LandingPage /> },
-      { path: "/maps", element: <MapsPage /> },
       { path: "/login", element: <LoginPage /> },
       {
         element: <ProtectedRoute />,

@@ -1,3 +1,6 @@
+import { motion } from "framer-motion";
+import logo from "../assets/full_logo.png";
+
 const PRODUCT_LINKS = [
   "Route forecast",
   "Coverage map",
@@ -37,17 +40,28 @@ export default function Footer() {
           style={{ gridColumn: "1 / -1", maxWidth: 280 }}
           className="md:!col-auto"
         >
-          <a
+          <motion.a
             href="#"
-            style={{ display: "flex", alignItems: "center", gap: 10 }}
+            onClick={(e) => {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ opacity: 0.85 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              width: "fit-content",
+              cursor: "pointer",
+            }}
           >
-            <div className="logo-mark" />
-            <div
-              style={{ fontWeight: 800, fontSize: 15, letterSpacing: "-0.3px" }}
-            >
-              Signal<span style={{ color: "var(--brand)" }}>PH</span>
-            </div>
-          </a>
+            <img
+              src={logo}
+              alt="SignalPH Logo"
+              style={{ height: 80, width: "auto" }}
+            />
+          </motion.a>
           <p
             style={{
               fontSize: 12.5,

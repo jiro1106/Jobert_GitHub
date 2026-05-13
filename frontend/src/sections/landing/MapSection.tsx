@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MOCK_ROUTE_FORECAST } from "../../types/coverage";
 import MapComponent, {
   type RouteMetricsFromMap,
 } from "../../components/map/MapComponent";
-import type { TravelMode } from "../../types/coverage";
 import { ArrowRight } from "lucide-react";
 
 /* ============================================================
@@ -53,15 +52,6 @@ export default function MapSection() {
             14,210 community readings.
           </div>
         </div>
-        <div className="block-head-r">
-          <ModeSegment />
-          <button className="btn">
-            <ShareIcon /> Share
-          </button>
-          <button className="btn btn-brand">
-            <SaveIcon /> Save trip
-          </button>
-        </div>
       </div>
 
       {/* Map + sidebar grid */}
@@ -87,29 +77,6 @@ export default function MapSection() {
 
       <ForecastChart />
     </section>
-  );
-}
-
-/* ---- Mode segmented control ---- */
-function ModeSegment() {
-  const [active, setActive] = useState<TravelMode>("drive");
-  const modes: { id: TravelMode; label: string }[] = [
-    { id: "drive", label: "Drive" },
-    { id: "bus", label: "Bus" },
-    { id: "walk", label: "Walk" },
-  ];
-  return (
-    <div className="seg">
-      {modes.map((m) => (
-        <button
-          key={m.id}
-          className={active === m.id ? "active" : ""}
-          onClick={() => setActive(m.id)}
-        >
-          {m.label}
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -354,30 +321,109 @@ function RouteSidebar({
 /* ---- Forecast Chart ---- */
 function ForecastChart() {
   const [activeProviders, setActiveProviders] = useState(new Set(["globe"]));
+  const [hover, setHover] = useState<{
+    svgX: number;
+    values: Record<string, number>;
+  } | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
-  function toggleProvider(p: string) {
+  const W = 900,
+    H = 200;
+
+  const globePts: [number, number][] = [
+    [30, 45], [90, 40], [150, 50], [210, 60], [270, 70], [330, 130],
+    [380, 75], [440, 60], [500, 50], [560, 110], [610, 80], [670, 60],
+    [730, 55], [780, 90], [830, 60], [870, 50],
+  ];
+  const smartPts: [number, number][] = [
+    [30, 60], [90, 50], [150, 65], [210, 80], [270, 95], [330, 140],
+    [380, 100], [440, 90], [500, 75], [560, 130], [610, 110], [670, 90],
+    [730, 80], [780, 105], [830, 85], [870, 75],
+  ];
+  const ditoPts: [number, number][] = [
+    [30, 90], [90, 95], [150, 110], [210, 130], [270, 145], [330, 175],
+    [380, 150], [440, 140], [500, 135], [560, 165], [610, 150], [670, 130],
+    [730, 125], [780, 145], [830, 130], [870, 120],
+  ];
+
+  const providerConfig = [
+    { id: "globe", label: "Globe", color: "#1F4FFF", pts: globePts, dash: undefined as string | undefined },
+    { id: "smart", label: "Smart", color: "#E11D48", pts: smartPts, dash: undefined as string | undefined },
+    { id: "dito",  label: "DITO",  color: "#4F46E5", pts: ditoPts,  dash: "5 4"  as string | undefined },
+  ];
+
+  const deadZones = [
+    { x: 305, w: 50, label: "Dead zone", color: "#D03737" },
+    { x: 555, w: 40, label: "Patchy",    color: "#C77700" },
+    { x: 755, w: 32, label: "Patchy",    color: "#C77700" },
+  ];
+
+  const axis: { km: string; place: string; highlight?: boolean }[] = [
+    { km: "0 km",   place: "Manila"   },
+    { km: "50 km",  place: "Tarlac"   },
+    { km: "78 km",  place: "Gap",  highlight: true },
+    { km: "120 km", place: "Dagupan"  },
+    { km: "160 km", place: "Aringay"  },
+    { km: "214 km", place: "La Union" },
+  ];
+
+  function smoothPath(pts: [number, number][], tension = 0.35): string {
+    const d: string[] = [`M ${pts[0][0]} ${pts[0][1]}`];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(0, i - 1)];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[Math.min(pts.length - 1, i + 2)];
+      const cp1x = p1[0] + (p2[0] - p0[0]) * tension;
+      const cp1y = p1[1] + (p2[1] - p0[1]) * tension;
+      const cp2x = p2[0] - (p3[0] - p1[0]) * tension;
+      const cp2y = p2[1] - (p3[1] - p1[1]) * tension;
+      d.push(`C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2[0]} ${p2[1]}`);
+    }
+    return d.join(" ");
+  }
+
+  function getY(pts: [number, number][], x: number): number {
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (x >= pts[i][0] && x <= pts[i + 1][0]) {
+        const t = (x - pts[i][0]) / (pts[i + 1][0] - pts[i][0]);
+        return pts[i][1] + t * (pts[i + 1][1] - pts[i][1]);
+      }
+    }
+    return pts[pts.length - 1][1];
+  }
+
+  function yToSignal(y: number) {
+    return Math.max(0, Math.min(100, Math.round(((H - y) / H) * 100)));
+  }
+
+  function signalLabel(pct: number): { label: string; color: string } {
+    if (pct >= 65) return { label: "Strong",   color: "#16A34A" };
+    if (pct >= 35) return { label: "Moderate", color: "#D97706" };
+    return             { label: "Weak",     color: "#DC2626" };
+  }
+
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const svgX = ((e.clientX - rect.left) / rect.width) * W;
+    if (svgX < 30 || svgX > 870) { setHover(null); return; }
+    const values: Record<string, number> = {};
+    for (const p of providerConfig) {
+      if (activeProviders.has(p.id)) values[p.id] = yToSignal(getY(p.pts, svgX));
+    }
+    setHover({ svgX, values });
+  }
+
+  function toggleProvider(id: string) {
     setActiveProviders((prev) => {
       const next = new Set(prev);
-      if (next.has(p)) next.delete(p);
-      else next.add(p);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
-
-  const providers = [
-    { id: "globe", label: "Globe", color: "#1F4FFF" },
-    { id: "smart", label: "Smart", color: "#E11D48" },
-    { id: "dito", label: "DITO", color: "#4F46E5" },
-  ];
-
-  const axis = [
-    { km: "0 km", place: "Manila" },
-    { km: "50 km", place: "Tarlac" },
-    { km: "78 km", place: "Gap", highlight: true },
-    { km: "120 km", place: "Dagupan" },
-    { km: "160 km", place: "Aringay" },
-    { km: "214 km", place: "La Union", bold: true },
-  ];
 
   return (
     <div
@@ -390,223 +436,272 @@ function ForecastChart() {
         boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
       }}
     >
+      {/* Header */}
       <div
         style={{
-          padding: "12px 14px",
+          padding: "14px 18px",
           borderBottom: "1px solid var(--line)",
           display: "flex",
-          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
           gap: 10,
         }}
-        className="sm:!flex-row sm:!items-center sm:!p-[14px_18px]"
       >
         <div>
-          <div className="panel-title">
-            Predicted signal strength along route
-          </div>
-          <div className="h-sub" style={{ fontSize: 12, marginTop: 2 }}>
-            Solid line = ML forecast · dotted = community-verified
+          <div className="panel-title">Signal strength along route</div>
+          <div style={{ fontSize: 11, color: "var(--ink-5)", marginTop: 3 }}>
+            Hover to inspect · solid = ML forecast · dashed = community data
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {providers.map((p) => (
-            <button
-              key={p.id}
-              className={`prov-toggle ${activeProviders.has(p.id) ? "active" : ""}`}
-              onClick={() => toggleProvider(p.id)}
-            >
-              <span
+          {providerConfig.map((p) => {
+            const on = activeProviders.has(p.id);
+            return (
+              <button
+                key={p.id}
+                onClick={() => toggleProvider(p.id)}
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: activeProviders.has(p.id) ? "white" : p.color,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "5px 11px",
+                  borderRadius: 20,
+                  border: `1.5px solid ${on ? p.color : "var(--line)"}`,
+                  background: on ? p.color : "transparent",
+                  color: on ? "white" : "var(--ink-4)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
                 }}
-              />
-              {p.label}
-            </button>
-          ))}
+              >
+                <svg width="18" height="8" viewBox="0 0 18 8" style={{ flexShrink: 0 }}>
+                  <line
+                    x1="0" y1="4" x2="18" y2="4"
+                    stroke={on ? "rgba(255,255,255,0.9)" : p.color}
+                    strokeWidth="2.5"
+                    strokeDasharray={p.dash}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                {p.label}
+              </button>
+            );
+          })}
         </div>
       </div>
-      <div
-        style={{
-          padding: "14px 14px 18px",
-          overflowX: "auto",
-          WebkitOverflowScrolling: "touch",
-        }}
-        className="md:!py-[18px] md:!px-6 md:!overflow-x-visible"
-      >
-        <svg
-          viewBox="0 0 900 200"
-          preserveAspectRatio="none"
-          style={{
-            width: "100%",
-            minWidth: 520,
-            height: 180,
-            display: "block",
-          }}
-          className="md:!min-w-0 md:!h-[200px]"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <linearGradient id="fillGlobe" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#1F4FFF" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#1F4FFF" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          {/* Grid */}
-          <g stroke="#EEF1F7" strokeWidth="1">
-            {[40, 80, 120, 160].map((y) => (
-              <line key={y} x1="0" y1={y} x2="900" y2={y} />
-            ))}
-          </g>
-          {/* Labels */}
-          <g fontFamily="JetBrains Mono" fontSize="9" fill="#94A3B8">
-            {[
-              ["100", 36],
-              ["75", 76],
-              ["50", 116],
-              ["25", 156],
-            ].map(([v, y]) => (
-              <text key={v} x="6" y={y}>
-                {v}
-              </text>
-            ))}
-          </g>
-          {/* Dead zone bands */}
-          <rect
-            x="305"
-            y="0"
-            width="50"
-            height="200"
-            fill="#D03737"
-            opacity="0.06"
-          />
-          <rect
-            x="555"
-            y="0"
-            width="40"
-            height="200"
-            fill="#C77700"
-            opacity="0.06"
-          />
-          <rect
-            x="755"
-            y="0"
-            width="32"
-            height="200"
-            fill="#C77700"
-            opacity="0.06"
-          />
-          {/* Smart line */}
-          {activeProviders.has("smart") && (
-            <path
-              d="M 30 60 L 90 50 L 150 65 L 210 80 L 270 95 L 330 140 L 380 100 L 440 90 L 500 75 L 560 130 L 610 110 L 670 90 L 730 80 L 780 105 L 830 85 L 870 75"
-              fill="none"
-              stroke="#E11D48"
-              strokeWidth="2"
-              opacity="0.55"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          )}
-          {/* DITO line */}
-          {activeProviders.has("dito") && (
-            <path
-              d="M 30 90 L 90 95 L 150 110 L 210 130 L 270 145 L 330 175 L 380 150 L 440 140 L 500 135 L 560 165 L 610 150 L 670 130 L 730 125 L 780 145 L 830 130 L 870 120"
-              fill="none"
-              stroke="#4F46E5"
-              strokeWidth="2"
-              opacity="0.45"
-              strokeDasharray="4 4"
-              strokeLinejoin="round"
-            />
-          )}
-          {/* Globe fill + line */}
-          {activeProviders.has("globe") && (
-            <>
-              <path
-                d="M 30 45 L 90 40 L 150 50 L 210 60 L 270 70 L 330 130 L 380 75 L 440 60 L 500 50 L 560 110 L 610 80 L 670 60 L 730 55 L 780 90 L 830 60 L 870 50 L 870 200 L 30 200 Z"
-                fill="url(#fillGlobe)"
-              />
-              <path
-                d="M 30 45 L 90 40 L 150 50 L 210 60 L 270 70 L 330 130 L 380 75 L 440 60 L 500 50 L 560 110 L 610 80 L 670 60 L 730 55 L 780 90 L 830 60 L 870 50"
-                fill="none"
-                stroke="#1F4FFF"
-                strokeWidth="2.8"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-              <line
-                x1="380"
-                y1="0"
-                x2="380"
-                y2="200"
-                stroke="#0B1220"
-                strokeWidth="1"
-                strokeDasharray="3 3"
-                opacity="0.4"
-              />
-              <circle
-                cx="380"
-                cy="75"
-                r="5"
-                fill="#1F4FFF"
-                stroke="white"
-                strokeWidth="2"
-              />
-              <text
-                x="380"
-                y="20"
-                textAnchor="middle"
-                fontFamily="JetBrains Mono"
-                fontSize="9"
-                fill="#475569"
-                fontWeight="600"
-              >
-                82 / 100
-              </text>
-            </>
-          )}
-        </svg>
 
-        {/* Axis labels */}
+      {/* Chart */}
+      <div style={{ padding: "18px 18px 0", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div style={{ position: "relative", minWidth: 520 }}>
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${W} ${H}`}
+            preserveAspectRatio="none"
+            style={{ width: "100%", height: 220, display: "block", cursor: "crosshair" }}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={() => setHover(null)}
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <linearGradient id="fillGlobe" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#1F4FFF" stopOpacity="0.15" />
+                <stop offset="100%" stopColor="#1F4FFF" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="fillSmart" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#E11D48" stopOpacity="0.08" />
+                <stop offset="100%" stopColor="#E11D48" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+
+            {/* Signal quality zone bands */}
+            <rect x="0" y="0"   width={W} height="70" fill="#22C55E" opacity="0.04" />
+            <rect x="0" y="70"  width={W} height="60" fill="#F59E0B" opacity="0.04" />
+            <rect x="0" y="130" width={W} height="70" fill="#EF4444" opacity="0.04" />
+            <line x1="0" y1="70"  x2={W} y2="70"  stroke="#22C55E" strokeWidth="0.5" strokeDasharray="3 4" opacity="0.35" />
+            <line x1="0" y1="130" x2={W} y2="130" stroke="#EF4444" strokeWidth="0.5" strokeDasharray="3 4" opacity="0.35" />
+
+            {/* Zone labels */}
+            <text x={W - 6} y="36"  textAnchor="end" fontFamily="JetBrains Mono" fontSize="8" fill="#16A34A" opacity="0.6" fontWeight="600">STRONG</text>
+            <text x={W - 6} y="103" textAnchor="end" fontFamily="JetBrains Mono" fontSize="8" fill="#D97706" opacity="0.6" fontWeight="600">MODERATE</text>
+            <text x={W - 6} y="168" textAnchor="end" fontFamily="JetBrains Mono" fontSize="8" fill="#DC2626" opacity="0.6" fontWeight="600">WEAK</text>
+
+            {/* Grid */}
+            <g stroke="#EEF1F7" strokeWidth="0.75">
+              {[40, 80, 120, 160].map((y) => (
+                <line key={y} x1="0" y1={y} x2={W} y2={y} />
+              ))}
+            </g>
+
+            {/* Y-axis labels */}
+            <g fontFamily="JetBrains Mono" fontSize="9" fill="#94A3B8">
+              {([ ["100", 14], ["75", 54], ["50", 104], ["25", 154] ] as [string, number][]).map(([v, y]) => (
+                <text key={v} x="6" y={y}>{v}</text>
+              ))}
+            </g>
+
+            {/* Dead zone bands */}
+            {deadZones.map((dz, i) => (
+              <g key={i}>
+                <rect x={dz.x} y="0" width={dz.w} height={H} fill={dz.color} opacity="0.08" />
+                <rect x={dz.x} y="0" width={dz.w} height="3"  fill={dz.color} opacity="0.5" />
+                <text
+                  x={dz.x + dz.w / 2} y="18"
+                  textAnchor="middle"
+                  fontFamily="JetBrains Mono"
+                  fontSize="7.5"
+                  fill={dz.color}
+                  fontWeight="700"
+                  opacity="0.75"
+                >
+                  {dz.label.toUpperCase()}
+                </text>
+              </g>
+            ))}
+
+            {/* Area fills */}
+            {activeProviders.has("globe") && (
+              <path d={`${smoothPath(globePts)} L 870 ${H} L 30 ${H} Z`} fill="url(#fillGlobe)" />
+            )}
+            {activeProviders.has("smart") && (
+              <path d={`${smoothPath(smartPts)} L 870 ${H} L 30 ${H} Z`} fill="url(#fillSmart)" />
+            )}
+
+            {/* Provider lines */}
+            {providerConfig.map((p) =>
+              activeProviders.has(p.id) ? (
+                <path
+                  key={p.id}
+                  d={smoothPath(p.pts)}
+                  fill="none"
+                  stroke={p.color}
+                  strokeWidth={p.id === "globe" ? 2.8 : 2}
+                  strokeDasharray={p.dash}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  opacity={p.id === "dito" ? 0.5 : 0.85}
+                />
+              ) : null
+            )}
+
+            {/* Hover tracker */}
+            {hover && (
+              <>
+                <line
+                  x1={hover.svgX} y1="0" x2={hover.svgX} y2={H}
+                  stroke="var(--ink)" strokeWidth="1" strokeDasharray="3 3" opacity="0.25"
+                />
+                {providerConfig.map((p) =>
+                  activeProviders.has(p.id) ? (
+                    <circle
+                      key={p.id}
+                      cx={hover.svgX}
+                      cy={H - (hover.values[p.id] / 100) * H}
+                      r="4"
+                      fill={p.color}
+                      stroke="white"
+                      strokeWidth="2"
+                    />
+                  ) : null
+                )}
+              </>
+            )}
+          </svg>
+
+          {/* Hover tooltip */}
+          {hover && Object.keys(hover.values).length > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: 10,
+                left: `${(hover.svgX / W) * 100}%`,
+                transform:
+                  hover.svgX > W * 0.72
+                    ? "translateX(-105%)"
+                    : hover.svgX < W * 0.25
+                    ? "translateX(5%)"
+                    : "translateX(-50%)",
+                background: "rgba(11,18,32,0.92)",
+                backdropFilter: "blur(6px)",
+                color: "white",
+                borderRadius: 8,
+                padding: "7px 11px",
+                fontSize: 11,
+                fontFamily: "var(--mono)",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+                zIndex: 10,
+                boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+              }}
+            >
+              {providerConfig
+                .filter((p) => activeProviders.has(p.id))
+                .map((p) => {
+                  const sig = hover.values[p.id];
+                  const { label, color } = signalLabel(sig);
+                  return (
+                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "1px 0" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, display: "inline-block", flexShrink: 0 }} />
+                      <span style={{ color: "rgba(255,255,255,0.6)", minWidth: 40 }}>{p.label}</span>
+                      <span style={{ fontWeight: 700 }}>{sig}%</span>
+                      <span style={{ color, fontSize: 10 }}>{label}</span>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+
+        {/* X-axis labels */}
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            marginTop: 6,
+            marginTop: 8,
+            paddingBottom: 16,
             fontFamily: "var(--mono)",
-            fontSize: 9,
+            fontSize: 10,
             color: "var(--ink-5)",
             minWidth: 520,
-            gap: 4,
           }}
-          className="md:!text-[10px] md:!min-w-0"
         >
           {axis.map((a) => (
-            <div
-              key={a.km}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-              }}
-            >
-              <b
-                style={{
-                  color: a.highlight ? "#D03737" : "var(--ink)",
-                  fontWeight: 600,
-                  fontSize: 11,
-                }}
-              >
+            <div key={a.km} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <b style={{ color: a.highlight ? "#D03737" : "var(--ink)", fontWeight: 600, fontSize: 11 }}>
                 {a.km}
               </b>
               <span>{a.place}</span>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Signal zone legend */}
+      <div
+        style={{
+          padding: "10px 18px 12px",
+          borderTop: "1px solid var(--line-soft)",
+          display: "flex",
+          gap: 14,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        <span style={{ fontSize: 10, color: "var(--ink-5)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          Signal zones
+        </span>
+        {[
+          { color: "#16A34A", label: "Strong ≥65%",      dot: true  },
+          { color: "#D97706", label: "Moderate 35–65%",  dot: true  },
+          { color: "#DC2626", label: "Weak <35%",        dot: true  },
+          { color: "#D03737", label: "Dead zone",        dot: false },
+        ].map(({ color, label, dot }) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--ink-4)" }}>
+            <span style={{ width: 10, height: 10, borderRadius: dot ? "50%" : 2, background: color, opacity: 0.75, display: "inline-block", flexShrink: 0 }} />
+            {label}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -641,142 +736,7 @@ function TripMetric({
   );
 }
 
-function RouteStop({ label, dotColor }: { label: string; dotColor: string }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 7,
-        fontWeight: 600,
-      }}
-    >
-      <span
-        style={{
-          width: 9,
-          height: 9,
-          borderRadius: "50%",
-          background: dotColor,
-        }}
-      />
-      {label}
-    </span>
-  );
-}
-
-function RouteArrow() {
-  return (
-    <span
-      style={{
-        position: "relative",
-        display: "inline-block",
-        width: 14,
-        height: 1,
-        background: "var(--ink-5)",
-      }}
-    >
-      <span
-        style={{
-          position: "absolute",
-          right: -1,
-          top: -3,
-          width: 0,
-          height: 0,
-          borderLeft: "5px solid var(--ink-5)",
-          borderTop: "3.5px solid transparent",
-          borderBottom: "3.5px solid transparent",
-        }}
-      />
-    </span>
-  );
-}
-
 /* Icon helpers */
-function ShareIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <polyline points="16 6 12 2 8 6" />
-      <line x1="12" y1="2" x2="12" y2="15" />
-    </svg>
-  );
-}
-function SaveIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6l-1.5 14a2 2 0 0 1-2 2H8.5a2 2 0 0 1-2-2L5 6" />
-      <path d="M10 11v6M14 11v6" />
-    </svg>
-  );
-}
-function PlusIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  );
-}
-function RerouteIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <polyline points="23 4 23 10 17 10" />
-      <polyline points="1 20 1 14 7 14" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  );
-}
-function FullscreenIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-      <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
-      <path d="M3 16v3a2 2 0 0 0 2 2h3" />
-      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-    </svg>
-  );
-}
 function InfoIcon() {
   return (
     <svg
