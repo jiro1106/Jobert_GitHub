@@ -8,8 +8,10 @@ from pydantic import BaseModel, Field
 
 from .config.settings import get_settings
 from .middleware.auth import error_handler_middleware
+from .routes.api import router as api_router
 from .services.route_service import analyze_point, analyze_route
 from .utils.helpers import error_response, success_response
+from pydantic import BaseModel, Field
 
 settings = get_settings()
 
@@ -41,7 +43,11 @@ app.add_middleware(
 
 app.middleware("http")(error_handler_middleware)
 
+# Include API routes
+app.include_router(api_router, prefix="/api", tags=["signals"])
 
+
+# ============= Request Models =============
 class PointAnalysisRequest(BaseModel):
     latitude: float
     longitude: float
@@ -61,6 +67,36 @@ class RouteAnalysisRequest(BaseModel):
     radius_km: float = Field(default=5.0, ge=0.1, le=50.0)
 
 
+# ============= Advanced Analysis Endpoints =============
+@app.post("/analyze/point")
+async def analyze_point_endpoint(payload: PointAnalysisRequest):
+    """Analyze signal quality at a specific point"""
+    result = analyze_point(
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        radius_km=payload.radius_km,
+    )
+    return success_response(data=result, message="Point analysis complete")
+
+
+@app.post("/analyze/route")
+async def analyze_route_endpoint(payload: RouteAnalysisRequest):
+    """Analyze signal quality along a route"""
+    route_points = (
+        [point.model_dump() for point in payload.route_points]
+        if payload.route_points
+        else None
+    )
+    result = analyze_route(
+        origin=payload.origin.model_dump(),
+        destination=payload.destination.model_dump(),
+        route_points=route_points,
+        radius_km=payload.radius_km,
+    )
+    return success_response(data=result, message="Route analysis complete")
+
+
+# ============= Health Check & Info Endpoints =============
 @app.get("/")
 async def root():
     return success_response(
@@ -90,28 +126,7 @@ async def info():
     )
 
 
-@app.post("/analyze/point")
-async def analyze_point_endpoint(payload: PointAnalysisRequest):
-    result = analyze_point(
-        latitude=payload.latitude,
-        longitude=payload.longitude,
-        radius_km=payload.radius_km,
-    )
-    return success_response(data=result, message="Point analysis complete")
-
-
-@app.post("/analyze/route")
-async def analyze_route_endpoint(payload: RouteAnalysisRequest):
-    route_points = [point.model_dump() for point in payload.route_points] if payload.route_points else None
-    result = analyze_route(
-        origin=payload.origin.model_dump(),
-        destination=payload.destination.model_dump(),
-        route_points=route_points,
-        radius_km=payload.radius_km,
-    )
-    return success_response(data=result, message="Route analysis complete")
-
-
+# ============= Exception Handlers =============
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
     return JSONResponse(
@@ -131,6 +146,17 @@ async def internal_error_handler(request: Request, exc):
             message="Internal server error",
             status_code=500,
         ),
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        app,
+        host=settings.host,
+        port=settings.port,
+        log_level=settings.log_level.lower(),
     )
 
 

@@ -1,24 +1,45 @@
 """Supabase database connection using Supabase Python client"""
 from typing import List, Optional
 
-from config.settings import get_settings
+from ..config.settings import get_settings
 
-settings = get_settings()
+# Lazy-initialized Supabase client
+_supabase_client = None
+SUPABASE_AVAILABLE = False
 
-try:
-    from supabase import create_client
-    supabase = create_client(settings.supabase_url, settings.supabase_key)
-    SUPABASE_AVAILABLE = True
-except Exception as e:
-    print(f"Warning: Supabase client not available: {e}")
-    SUPABASE_AVAILABLE = False
+
+def _initialize_supabase():
+    """Initialize Supabase client on first use"""
+    global _supabase_client, SUPABASE_AVAILABLE
+    
+    if _supabase_client is not None:
+        return _supabase_client
+    
+    try:
+        from supabase import create_client
+        settings = get_settings()
+        
+        if not settings.supabase_url or not settings.supabase_key:
+            print("Note: Supabase credentials not configured, using SQLite fallback")
+            SUPABASE_AVAILABLE = False
+            return None
+        
+        _supabase_client = create_client(settings.supabase_url, settings.supabase_key)
+        SUPABASE_AVAILABLE = True
+        print("✓ Successfully connected to Supabase")
+        return _supabase_client
+    except Exception as e:
+        print(f"Warning: Supabase client not available: {e}")
+        SUPABASE_AVAILABLE = False
+        return None
 
 
 def get_supabase_client():
-    """Get Supabase client instance"""
-    if not SUPABASE_AVAILABLE:
+    """Get Supabase client instance (lazy initialization)"""
+    client = _initialize_supabase()
+    if not client:
         raise RuntimeError("Supabase client not initialized")
-    return supabase
+    return client
 
 
 class SupabaseQuery:
@@ -28,6 +49,7 @@ class SupabaseQuery:
     def query(table: str, filters: dict = None) -> List[dict]:
         """Query a table from Supabase"""
         try:
+            supabase = get_supabase_client()
             query_builder = supabase.table(table).select("*")
             
             if filters:
@@ -44,6 +66,7 @@ class SupabaseQuery:
     def query_with_sql(query: str, params: tuple = ()) -> List[dict]:
         """Execute custom SQL query via Supabase"""
         try:
+            supabase = get_supabase_client()
             # Use RPC or raw query if available
             response = supabase.rpc("execute_query", {"query": query, "params": params}).execute()
             return response.data if hasattr(response, 'data') else []
@@ -55,6 +78,7 @@ class SupabaseQuery:
     def insert(table: str, data: dict) -> Optional[dict]:
         """Insert a row into Supabase"""
         try:
+            supabase = get_supabase_client()
             response = supabase.table(table).insert([data]).execute()
             data_list = response.data if hasattr(response, 'data') else []
             return data_list[0] if data_list else None
@@ -66,6 +90,7 @@ class SupabaseQuery:
     def insert_many(table: str, data_list: List[dict]) -> int:
         """Insert multiple rows into Supabase"""
         try:
+            supabase = get_supabase_client()
             response = supabase.table(table).insert(data_list).execute()
             return len(response.data) if hasattr(response, 'data') else 0
         except Exception as e:
