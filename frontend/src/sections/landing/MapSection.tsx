@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { MOCK_ROUTE_FORECAST } from '../../types/coverage';
 import MapComponent from '../../components/map/MapComponent';
 import type { TravelMode } from '../../types/coverage';
+import { ArrowRight } from 'lucide-react';
 
 /* ============================================================
    MapSection — Route Forecast block
@@ -9,14 +11,28 @@ import type { TravelMode } from '../../types/coverage';
    ============================================================ */
 export default function MapSection() {
   const forecast = MOCK_ROUTE_FORECAST;
+  const [searchParams] = useSearchParams();
+  const fromParam = searchParams.get('from') ?? '';
+  const toParam = searchParams.get('to') ?? '';
+  const hasRoute = Boolean(fromParam || toParam);
+  const fromLabel = fromParam || 'Pick a start';
+  const toLabel = toParam || 'Pick a destination';
 
   return (
-    <section className="block" data-section="route-forecast">
+    <section className="block" id="route-forecast" data-section="route-forecast">
       <div className="block-head">
         <div>
           <div className="eyebrow">01 · Route forecast</div>
-          <h2 className="h-section" style={{ marginTop: 6 }}>
-            Manila → San Fernando, La Union
+          <h2 className="h-section flex-row" style={{ marginTop: 6 }}>
+            {hasRoute ? (
+              <div className="flex items-center gap-2">
+                <span>{fromLabel}</span>
+                <ArrowRight strokeWidth={2}/>
+                <span>{toLabel}</span>
+              </div>
+            ) : (
+              'Choose a route to preview coverage'
+            )}
           </h2>
           <div className="h-sub">
             Predicted coverage along your route, based on cell-tower density and 14,210 community readings.
@@ -41,7 +57,10 @@ export default function MapSection() {
       }}
       className="lg:!grid-cols-[1.55fr_1fr] lg:!gap-[18px]"
       >
-        <MapCard />
+        <MapCard
+          initialOriginText={fromParam || undefined}
+          initialDestinationText={toParam || undefined}
+        />
         <RouteSidebar forecast={forecast} />
       </div>
 
@@ -74,7 +93,13 @@ function ModeSegment() {
 }
 
 /* ---- Map Card ---- */
-function MapCard() {
+function MapCard({
+  initialOriginText,
+  initialDestinationText,
+}: {
+  initialOriginText?: string;
+  initialDestinationText?: string;
+}) {
   return (
     <div style={{
       background: 'white',
@@ -85,7 +110,10 @@ function MapCard() {
       boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
     }}>
       <div style={{ position: 'relative', height: 500 }}>
-        <MapComponent />
+        <MapComponent
+          initialOriginText={initialOriginText}
+          initialDestinationText={initialDestinationText}
+        />
       </div>
     </div>
   );

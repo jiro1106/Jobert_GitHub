@@ -23,6 +23,8 @@ interface LocationInfo {
 
 interface Props {
   onLocationChange?: (info: LocationInfo) => void;
+  initialOriginText?: string;
+  initialDestinationText?: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -144,7 +146,11 @@ const MapSizeObserver: React.FC<{
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const MapComponent: React.FC<Props> = ({ onLocationChange }) => {
+const MapComponent: React.FC<Props> = ({
+  onLocationChange,
+  initialOriginText,
+  initialDestinationText,
+}) => {
   const mapRef = useRef<LeafletMap | null>(null);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -274,7 +280,13 @@ const MapComponent: React.FC<Props> = ({ onLocationChange }) => {
             canRecenter={Boolean(userLocation)}
           />
 
-          <MapSearchLeaflet map={mapInstance} origin={userLocation} />
+          <MapSearchLeaflet
+            map={mapInstance}
+            origin={userLocation}
+            initialOriginText={initialOriginText}
+            initialDestinationText={initialDestinationText}
+            isFullscreen={isFullscreen}
+          />
 
           <MapSizeObserver map={mapInstance} isFullscreen={isFullscreen} />
 

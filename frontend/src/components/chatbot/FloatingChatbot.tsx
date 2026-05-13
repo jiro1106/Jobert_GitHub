@@ -111,7 +111,7 @@ const FloatingChatbot: React.FC = () => {
       {minimized && (
         <button
           onClick={toggleMinimize}
-          className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 rounded-2xl bg-[#07142B] px-5 py-4 text-white shadow-2xl hover:scale-105 transition"
+          className="fixed bottom-6 right-6 z-9999 flex items-center gap-3 rounded-2xl bg-[#07142B] px-5 py-4 text-white shadow-2xl hover:scale-105 transition"
         >
           <Bot size={20} />
 

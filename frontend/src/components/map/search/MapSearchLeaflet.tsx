@@ -21,15 +21,25 @@ type DestinationMode = 'typed' | 'pinned';
 type Props = {
   map: LeafletMap | null;
   origin?: LatLng | null;
+  initialOriginText?: string;
+  initialDestinationText?: string;
+  isFullscreen?: boolean;
 };
 
-const MapSearchLeaflet: React.FC<Props> = ({ map, origin }) => {
+const MapSearchLeaflet: React.FC<Props> = ({
+  map,
+  origin,
+  initialOriginText,
+  initialDestinationText,
+  isFullscreen = false,
+}) => {
   const routingRef = useRef<any>(null);
   const destinationMarkerRef = useRef<L.Marker | null>(null);
   const destinationDebounceRef = useRef<number | null>(null);
   const destinationAbortRef = useRef<AbortController | null>(null);
   const originDebounceRef = useRef<number | null>(null);
   const originAbortRef = useRef<AbortController | null>(null);
+  const initialAppliedRef = useRef(false);
 
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -41,6 +51,55 @@ const MapSearchLeaflet: React.FC<Props> = ({ map, origin }) => {
   const [destinationMode, setDestinationMode] = useState<DestinationMode>('typed');
   const [destination, setDestination] = useState<LatLng | null>(null);
   const [destinationText, setDestinationText] = useState('');
+  const geocodeLocation = async (value: string) => {
+    const params = new URLSearchParams({
+      q: value,
+      format: 'json',
+      addressdetails: '1',
+      limit: '1',
+      countrycodes: 'ph',
+    });
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return {
+      lat: Number(data[0].lat),
+      lng: Number(data[0].lon),
+      label: String(data[0].display_name ?? value),
+    };
+  };
+
+  useEffect(() => {
+    if (!map || initialAppliedRef.current) return;
+    if (!initialOriginText && !initialDestinationText) return;
+
+    initialAppliedRef.current = true;
+
+    const applyInitial = async () => {
+      if (initialOriginText) {
+        setOriginMode('typed');
+        setOriginText(initialOriginText);
+        const result = await geocodeLocation(initialOriginText);
+        if (result) {
+          setOriginLocation({ lat: result.lat, lng: result.lng });
+          setOriginText(result.label);
+        }
+      }
+
+      if (initialDestinationText) {
+        setDestinationMode('typed');
+        setDestinationText(initialDestinationText);
+        const result = await geocodeLocation(initialDestinationText);
+        if (result) {
+          setDestination({ lat: result.lat, lng: result.lng });
+          setDestinationText(result.label);
+          map.setView([result.lat, result.lng], Math.max(map.getZoom(), 12));
+        }
+      }
+    };
+
+    void applyInitial();
+  }, [map, initialOriginText, initialDestinationText]);
 
   const destinationIcon = useMemo(() => {
     const svg = `
@@ -316,8 +375,12 @@ const MapSearchLeaflet: React.FC<Props> = ({ map, origin }) => {
 
   if (!map) return null;
 
+  const containerStyle = isFullscreen
+    ? { width: "calc(100% - 96px)", maxWidth: "75vw" }
+    : { width: "min(70vw, 560px)" };
+
   return (
-    <div className="absolute top-3 left-3 z-40 w-125">
+    <div className="absolute top-3 left-3 z-40" style={containerStyle}>
       <div className="flex items-center bg-white rounded-xl shadow-xl border border-gray-100 py-1 px-1.5 gap-2">
         <div className="flex items-center gap-2">
           <select
