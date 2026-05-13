@@ -1,10 +1,13 @@
 .env
 *.pyc
 __pycache__/
-venv/
+venv/git rm --cached .env
 .DS_Store
-firebase-key.json
 .vscode/
 .idea/
 *.log
+<<<<<<< HEAD
 
+=======
+towers_csv/
+>>>>>>> origin/backend_develop
