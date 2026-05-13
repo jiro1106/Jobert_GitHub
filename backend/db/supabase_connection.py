@@ -88,49 +88,20 @@ class SupabaseQuery:
             return False
 
 
-def query_towers_near_bbox(
-    min_latitude: float,
-    max_latitude: float,
-    min_longitude: float,
-    max_longitude: float,
-) -> list[dict]:
-    """
-    Fetch all towers inside a bbox from Supabase.
-
-    Supabase/PostgREST often returns only 1000 rows by default.
-    This paginates so Python receives the full candidate tower set.
-    """
-
-    all_rows = []
-    page_size = 1000
-    start = 0
-
-    while True:
-        end = start + page_size - 1
-
+def query_towers_near_bbox(min_lat: float, max_lat: float, min_lon: float, max_lon: float) -> List[dict]:
+    """Query cell towers within a bounding box"""
+    try:
         response = (
-            supabase
-            .table("cell_towers")
-            .select(
-                "tower_id, radio, mcc, net, area, cell, unit, "
-                "longitude, latitude, range_meters, samples, "
-                "changeable, created, updated, average_signal"
-            )
-            .gte("latitude", min_latitude)
-            .lte("latitude", max_latitude)
-            .gte("longitude", min_longitude)
-            .lte("longitude", max_longitude)
-            .range(start, end)
+            supabase.table("cell_towers")
+            .select("*")
+            .gte("latitude", min_lat)
+            .lte("latitude", max_lat)
+            .gte("longitude", min_lon)
+            .lte("longitude", max_lon)
             .execute()
         )
-
-        rows = response.data or []
-        all_rows.extend(rows)
-
-        if len(rows) < page_size:
-            break
-
-        start += page_size
-
-    return all_rows
+        return response.data if hasattr(response, 'data') else []
+    except Exception as e:
+        print(f"Supabase tower query error: {e}")
+        return []
 

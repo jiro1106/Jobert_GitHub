@@ -3,24 +3,28 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Iterable, List, Optional
 
-from ..config.settings import get_settings
-
-# Try to use Supabase if configured, fallback to SQLite
-try:
-    from .supabase_connection import SupabaseQuery, get_supabase_client
-    settings = get_settings()
-    USE_SUPABASE = bool(settings.supabase_url and settings.supabase_key)
-except Exception as e:
-    print(f"Note: Supabase not available, using SQLite: {e}")
-    USE_SUPABASE = False
+# Import supabase utilities (with lazy initialization)
+from .supabase_connection import (
+    SUPABASE_AVAILABLE,
+    SupabaseQuery,
+    _initialize_supabase,
+    get_supabase_client,
+)
 
 # SQLite fallback
 DB_PATH = Path(__file__).resolve().parents[2] / "local_data.db"
 
 
+def _is_supabase_available():
+    """Check if Supabase is available"""
+    # Initialize Supabase on first check
+    _initialize_supabase()
+    return SUPABASE_AVAILABLE
+
+
 def get_connection():
     """Get database connection - Supabase if available, SQLite otherwise"""
-    if USE_SUPABASE:
+    if _is_supabase_available():
         return get_supabase_client()
     else:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -32,7 +36,7 @@ def get_connection():
 
 def fetch_all(query: str = "", params: tuple = (), table: str = "cell_towers") -> List[Any]:
     """Fetch all records - automatically selects Supabase or SQLite"""
-    if USE_SUPABASE:
+    if _is_supabase_available():
         return SupabaseQuery.query(table, {})
     else:
         connection = get_connection()
@@ -47,7 +51,7 @@ def fetch_all(query: str = "", params: tuple = (), table: str = "cell_towers") -
 
 def fetch_one(query: str = "", params: tuple = (), table: str = "cell_towers") -> Optional[Any]:
     """Fetch one record - automatically selects Supabase or SQLite"""
-    if USE_SUPABASE:
+    if _is_supabase_available():
         results = SupabaseQuery.query(table, {})
         return results[0] if results else None
     else:
@@ -63,7 +67,7 @@ def fetch_one(query: str = "", params: tuple = (), table: str = "cell_towers") -
 
 def execute(query: str = "", params: tuple = (), table: str = "", data: dict = None) -> bool:
     """Execute insert/update - automatically selects Supabase or SQLite"""
-    if USE_SUPABASE:
+    if _is_supabase_available():
         if not data or not table:
             return False
         result = SupabaseQuery.insert(table, data)
