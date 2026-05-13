@@ -19,16 +19,16 @@ export const PROVIDER_COLORS: ProviderColors = {
     light: "#DBEAFE",
   },
   Smart: {
-    solid: "#DC2626",
-    light: "#FEE2E2",
+    solid: "#C90A11",
+    light: "#FFFE93",
   },
   DITO: {
     solid: "#16A34A",
     light: "#DCFCE7",
   },
   SUN: {
-    solid: "#C90A11",
-    light: "#FFFE93",
+    solid: "#DC2626",
+    light: "#FEE2E2",
   },
   TM: {
     solid: "#0C1281",
@@ -51,12 +51,13 @@ export const PROVIDER_FILTER_STYLES: Record<
       "bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300",
   },
   Smart: {
-    active: "bg-[#DC2626] text-white border-[#DC2626]",
+
+    active: "bg-[#16A34A] text-white border-[#16A34A]",
     inactive:
       "bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300",
   },
   DITO: {
-    active: "bg-[#16A34A] text-white border-[#16A34A]",
+    active: "bg-[#DC2626] text-white border-[#DC2626]",
     inactive:
       "bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300",
   },
