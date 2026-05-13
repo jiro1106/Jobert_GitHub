@@ -10,7 +10,11 @@ from ..models.schemas import (
 )
 from ..db.tower_repository import get_towers_in_bbox
 from ..db.report_repository import get_reports_in_bbox, insert_report
-from ..services.tower_matching_service import find_closest_towers, build_bbox_around_point
+from ..services.tower_matching_service import (
+    find_closest_towers,
+    build_bbox_around_point,
+    normalize_provider_name,
+)
 from ..services.scoring_service import calculate_provider_scores
 from ..services.recommendation_service import build_response_payload
 from ..utils.helpers import success_response
@@ -43,20 +47,42 @@ class SignalController:
             # Limit results
             towers = towers[:limit] if limit > 0 else towers
 
-            # Convert to response format
-            tower_responses = [
-                TowerResponse(
-                    tower_id=tower.get("tower_id"),
-                    latitude=tower.get("latitude"),
-                    longitude=tower.get("longitude"),
-                    provider_name=tower.get("provider_name"),
-                    cell_id=tower.get("cell"),
-                    area=tower.get("area"),
-                    range_meters=tower.get("range_meters"),
-                    average_signal=tower.get("average_signal"),
+            # Convert to response format (canonical_provider from MCC/MNC first)
+            tower_responses = []
+            for tower in towers:
+                if (
+                    tower.get("tower_id") is None
+                    or tower.get("latitude") is None
+                    or tower.get("longitude") is None
+                ):
+                    continue
+                mcc_raw = tower.get("mcc")
+                mnc_raw = tower.get("mnc")
+                if mnc_raw is None:
+                    mnc_raw = tower.get("net")
+                mcc_i = int(mcc_raw) if mcc_raw is not None else None
+                mnc_i = int(mnc_raw) if mnc_raw is not None else None
+                canonical = normalize_provider_name(
+                    mcc_i,
+                    mnc_i,
+                    tower.get("provider_name"),
                 )
-                for tower in towers
-            ]
+                tower_responses.append(
+                    TowerResponse(
+                        tower_id=tower["tower_id"],
+                        latitude=float(tower["latitude"]),
+                        longitude=float(tower["longitude"]),
+                        provider_name=tower.get("provider_name"),
+                        mcc=mcc_i,
+                        mnc=mnc_i,
+                        radio=tower.get("radio"),
+                        canonical_provider=canonical,
+                        cell_id=tower.get("cell"),
+                        area=tower.get("area"),
+                        range_meters=tower.get("range_meters"),
+                        average_signal=tower.get("average_signal"),
+                    )
+                )
 
             return success_response(
                 data=[t.model_dump() for t in tower_responses],

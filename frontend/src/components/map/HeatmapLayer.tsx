@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef } from "react";
+/**
+ * Heatmap for OpenCellID-backed towers returned by the API.
+ *
+ * Data path: `GET /api/towers/nearby` → `TowerResponse` with `canonical_provider`
+ * resolved server-side via `normalize_provider_name` / `MCC_MNC_TO_PROVIDER` in
+ * `backend/services/tower_matching_service.py`. Parent (`MapComponent`) maps
+ * those rows to `Tower[]` and passes them here as `towers`.
+ */
+import { useEffect, useMemo, useRef, type FC } from "react";
 import { useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet.heat";
@@ -14,21 +22,35 @@ function mapHasDrawableSize(map: L.Map): boolean {
   return s.x >= 2 && s.y >= 2;
 }
 
-const HeatmapLayer: React.FC<Props> = ({ towers, zoom }) => {
+/** leaflet.heat extends L at runtime; types are not shipped on `L`. */
+function createHeatLayer(
+  latlngs: [number, number, number][],
+  options: Record<string, unknown>
+): L.Layer {
+  const heatFactory = (L as unknown as { heatLayer: (pts: typeof latlngs, opts: object) => L.Layer }).heatLayer;
+  return heatFactory(latlngs, options);
+}
+
+function towersToHeatPoints(towers: Tower[]): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  for (const tower of towers) {
+    const lat = tower.position.lat;
+    const lng = tower.position.lng;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const w = tower.signal;
+    const intensity = Number.isFinite(w) ? Math.max(0.15, Math.min(1, w)) : 0.15;
+    out.push([lat, lng, intensity]);
+  }
+  return out;
+}
+
+const HeatmapLayer: FC<Props> = ({ towers, zoom }) => {
   const map = useMap();
   const layerRef = useRef<L.Layer | null>(null);
 
   const radius = useMemo(() => Math.max(18, 60 - zoom * 3), [zoom]);
 
-  const points = useMemo(
-    () =>
-      towers.map((tower) => [
-        tower.position.lat,
-        tower.position.lng,
-        Math.max(tower.signal, 0.15),
-      ]) as [number, number, number][],
-    [towers]
-  );
+  const heatPoints = useMemo(() => towersToHeatPoints(towers), [towers]);
 
   const heatOptions = useMemo(
     () => ({
@@ -65,19 +87,21 @@ const HeatmapLayer: React.FC<Props> = ({ towers, zoom }) => {
     const sync = () => {
       if (cancelled || !mapHasDrawableSize(map)) return;
 
+      if (heatPoints.length === 0) {
+        removeLayer();
+        return;
+      }
+
       try {
         if (!layerRef.current) {
-          const layer = (L as typeof L & { heatLayer: typeof L.heatLayer }).heatLayer(
-            points,
-            heatOptions
-          );
+          const layer = createHeatLayer(heatPoints, heatOptions);
           layerRef.current = layer;
           layer.addTo(map);
           return;
         }
 
-        const layer = layerRef.current as {
-          setLatLngs: (p: typeof points) => void;
+        const layer = layerRef.current as unknown as {
+          setLatLngs: (p: [number, number, number][]) => void;
           setOptions: (o: typeof heatOptions) => void;
         };
         if (!map.hasLayer(layerRef.current)) {
@@ -85,7 +109,7 @@ const HeatmapLayer: React.FC<Props> = ({ towers, zoom }) => {
           sync();
           return;
         }
-        layer.setLatLngs(points);
+        layer.setLatLngs(heatPoints);
         layer.setOptions(heatOptions);
       } catch {
         removeLayer();
@@ -124,7 +148,7 @@ const HeatmapLayer: React.FC<Props> = ({ towers, zoom }) => {
       cancelAnimationFrame(raf1);
       removeLayer();
     };
-  }, [map, points, heatOptions]);
+  }, [map, heatPoints, heatOptions]);
 
   return null;
 };

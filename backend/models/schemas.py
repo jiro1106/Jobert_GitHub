@@ -29,6 +29,10 @@ class TowerBase(BaseModel):
     latitude: float
     longitude: float
     provider_name: Optional[str] = None
+    mcc: Optional[int] = None
+    mnc: Optional[int] = None
+    radio: Optional[str] = None
+    canonical_provider: Optional[str] = None
     cell_id: Optional[int] = None
     area: Optional[int] = None
     range_meters: Optional[float] = None

@@ -136,11 +136,7 @@ def query_towers_near_bbox(
         response = (
             supabase
             .table("cell_towers")
-            .select(
-                "tower_id, radio, mcc, net, area, cell, unit, "
-                "longitude, latitude, range_meters, samples, "
-                "changeable, created, updated, average_signal"
-            )
+            .select("*")
             .gte("latitude", min_latitude)
             .lte("latitude", max_latitude)
             .gte("longitude", min_longitude)

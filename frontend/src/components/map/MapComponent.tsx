@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L, { type Map as LeafletMap } from 'leaflet';
 import FullscreenMap from './FullscreenMap';
@@ -6,7 +6,7 @@ import MapControls from './controls/MapControls';
 import ProviderFilters from './controls/ProviderFilters';
 import type { Provider, SignalRange, Tower } from './types';
 import { PROVIDER_COLORS, PROVIDER_FILTER_STYLES } from './ui/providerColors';
-import towerData from '../../data/MockCelltowerData.json';
+import { fetchNearbyTowers, viewportToRadiusKm } from '../../lib/towersApi';
 import MapSearchLeaflet, {
   type RouteMetricsFromMap,
 } from './search/MapSearchLeaflet';
@@ -43,25 +43,6 @@ const SIGNAL_FILTER_STYLES: Record<SignalRange, { active: string; inactive: stri
   Moderate: { active: 'bg-[#F59E0B] text-white border-[#F59E0B]', inactive: 'bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300' },
   Weak: { active: 'bg-[#DC2626] text-white border-[#DC2626]', inactive: 'bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300' },
 };
-
-type TowerData = {
-  id: string;
-  provider: Exclude<Provider, 'All'>;
-  lat: number;
-  lng: number;
-  signal: number;
-  radiusMeters: number;
-};
-
-const TOWER_DATA = towerData as TowerData[];
-
-const MOCK_TOWERS: Tower[] = TOWER_DATA.map((tower) => ({
-  id: tower.id,
-  provider: tower.provider,
-  position: { lat: tower.lat, lng: tower.lng },
-  signal: tower.signal,
-  radiusMeters: tower.radiusMeters,
-}));
 
 const TILE_LAYERS: Record<MapType, { url: string; attribution: string; maxZoom?: number }> = {
   roadmap: {
@@ -108,6 +89,57 @@ const pickDenseTowers = (towers: Tower[], zoom: number) => {
 
   return Array.from(buckets.values());
 };
+
+/** Loads towers from `/api/towers/nearby` when the map viewport settles (debounced). */
+function TowersViewportFetcher({
+  onViewportStable,
+}: {
+  onViewportStable: (args: { lat: number; lng: number; radiusKm: number }) => void;
+}) {
+  const map = useMap();
+  const debounceRef = useRef<number | null>(null);
+  const lastKeyRef = useRef<string>('');
+
+  const fire = useCallback(() => {
+    const c = map.getCenter();
+    const b = map.getBounds();
+    const sw = b.getSouthWest();
+    const ne = b.getNorthEast();
+    const radiusKm = viewportToRadiusKm(c.lat, {
+      south: sw.lat,
+      west: sw.lng,
+      north: ne.lat,
+      east: ne.lng,
+    });
+    const key = `${c.lat.toFixed(4)},${c.lng.toFixed(4)},${radiusKm.toFixed(2)}`;
+    if (key === lastKeyRef.current) return;
+    lastKeyRef.current = key;
+    onViewportStable({ lat: c.lat, lng: c.lng, radiusKm });
+  }, [map, onViewportStable]);
+
+  useEffect(() => {
+    const schedule = () => {
+      if (debounceRef.current != null) window.clearTimeout(debounceRef.current);
+      debounceRef.current = window.setTimeout(() => {
+        debounceRef.current = null;
+        fire();
+      }, 400);
+    };
+
+    const onReady = () => schedule();
+    map.whenReady(onReady);
+    map.on('moveend', schedule);
+    map.on('zoomend', schedule);
+
+    return () => {
+      if (debounceRef.current != null) window.clearTimeout(debounceRef.current);
+      map.off('moveend', schedule);
+      map.off('zoomend', schedule);
+    };
+  }, [map, fire]);
+
+  return null;
+}
 
 const MapEvents: React.FC<{
   mapRef: React.MutableRefObject<LeafletMap | null>;
@@ -169,6 +201,31 @@ const MapComponent: React.FC<Props> = ({
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [hoveredTowerId, setHoveredTowerId] = useState<string | null>(null);
   const [mapZoom, setMapZoom] = useState(12);
+  const [apiTowers, setApiTowers] = useState<Tower[]>([]);
+  const towersFetchAbortRef = useRef<AbortController | null>(null);
+
+  const handleViewportStable = useCallback(
+    (args: { lat: number; lng: number; radiusKm: number }) => {
+      towersFetchAbortRef.current?.abort();
+      const ac = new AbortController();
+      towersFetchAbortRef.current = ac;
+      void (async () => {
+        try {
+          const towers = await fetchNearbyTowers({
+            latitude: args.lat,
+            longitude: args.lng,
+            radiusKm: args.radiusKm,
+            limit: 2500,
+            signal: ac.signal,
+          });
+          if (!ac.signal.aborted) setApiTowers(towers);
+        } catch {
+          if (!ac.signal.aborted) setApiTowers([]);
+        }
+      })();
+    },
+    []
+  );
 
   // ── Geolocation ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -212,7 +269,7 @@ const MapComponent: React.FC<Props> = ({
     return tower.signal <= 0.45;
   };
 
-  const filteredTowers = MOCK_TOWERS.filter(
+  const filteredTowers = apiTowers.filter(
     (tower) => (selectedProvider === 'All' || tower.provider === selectedProvider)
       && matchesSignalRange(tower)
   );
@@ -319,6 +376,7 @@ const MapComponent: React.FC<Props> = ({
               onMapClick={() => setShowTypeMenu(false)}
               onReady={setMapInstance}
             />
+            <TowersViewportFetcher onViewportStable={handleViewportStable} />
 
             {/* Heatmap + tower icons */}
             {showLayers && showHeatmap && (

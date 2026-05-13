@@ -7,8 +7,15 @@ from .connection import execute, execute_many, fetch_all, fetch_one
 
 def row_to_dict(row) -> dict[str, Any]:
     if isinstance(row, dict):
-        return row
-    return dict(row) if row is not None else {}
+        d = dict(row)
+    elif row is not None:
+        d = dict(row)
+    else:
+        d = {}
+    # DB column is `net` (OpenCellID MNC); tower_matching uses `mnc`
+    if d.get("mnc") is None and d.get("net") is not None:
+        d["mnc"] = d["net"]
+    return d
 
 
 def get_towers_near_point(latitude: float, longitude: float, radius_km: float) -> list[dict[str, Any]]:
@@ -25,7 +32,15 @@ def get_towers_in_bbox(
     max_longitude: float,
 ) -> list[dict[str, Any]]:
     """Get towers within a bounding box - uses Supabase or SQLite"""
-    # Connection layer automatically handles Supabase vs SQLite
+    from .supabase_connection import _initialize_supabase, SUPABASE_AVAILABLE, query_towers_near_bbox
+
+    _initialize_supabase()
+    if SUPABASE_AVAILABLE:
+        rows = query_towers_near_bbox(
+            min_latitude, max_latitude, min_longitude, max_longitude
+        )
+        return [row_to_dict(r) for r in rows]
+
     query = """
     SELECT
         tower_id,
