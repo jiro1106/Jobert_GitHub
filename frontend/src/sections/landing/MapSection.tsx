@@ -5,6 +5,7 @@ import MapComponent, {
   type RouteMetricsFromMap,
 } from "../../components/map/MapComponent";
 import { ArrowRight } from "lucide-react";
+import { PROVIDERS } from "../../constants/providers";
 
 /* ============================================================
    MapSection — Route Forecast block
@@ -36,7 +37,7 @@ export default function MapSection() {
       <div className="block-head">
         <div>
           <div className="eyebrow">01 · Route forecast</div>
-          <h2 className="h-section flex-row" style={{ marginTop: 6 }}>
+          <h2 className="text-[30px] font-bold tracking-[-0.6px] leading-[1.2]">
             {hasRoute ? (
               <div className="flex items-center gap-2">
                 <span>{fromLabel}</span>
@@ -201,21 +202,19 @@ function RouteSidebar({
         >
           <div
             style={{
-              width: 56,
-              height: 56,
+              width: 64,
+              height: 64,
               borderRadius: 14,
-              background: "var(--ok-tint)",
-              color: "var(--ok)",
               display: "grid",
               placeItems: "center",
-              fontWeight: 800,
-              fontSize: 18,
-              fontFamily: "var(--mono)",
-              border: "1px solid #BDE7CF",
               flexShrink: 0,
             }}
           >
-            {recommendation.name[0]}
+            <img
+              src={PROVIDERS[recommendation.provider]?.logo}
+              alt={recommendation.name}
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            />
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>
@@ -331,39 +330,96 @@ function ForecastChart() {
     H = 200;
 
   const globePts: [number, number][] = [
-    [30, 45], [90, 40], [150, 50], [210, 60], [270, 70], [330, 130],
-    [380, 75], [440, 60], [500, 50], [560, 110], [610, 80], [670, 60],
-    [730, 55], [780, 90], [830, 60], [870, 50],
+    [30, 45],
+    [90, 40],
+    [150, 50],
+    [210, 60],
+    [270, 70],
+    [330, 130],
+    [380, 75],
+    [440, 60],
+    [500, 50],
+    [560, 110],
+    [610, 80],
+    [670, 60],
+    [730, 55],
+    [780, 90],
+    [830, 60],
+    [870, 50],
   ];
   const smartPts: [number, number][] = [
-    [30, 60], [90, 50], [150, 65], [210, 80], [270, 95], [330, 140],
-    [380, 100], [440, 90], [500, 75], [560, 130], [610, 110], [670, 90],
-    [730, 80], [780, 105], [830, 85], [870, 75],
+    [30, 60],
+    [90, 50],
+    [150, 65],
+    [210, 80],
+    [270, 95],
+    [330, 140],
+    [380, 100],
+    [440, 90],
+    [500, 75],
+    [560, 130],
+    [610, 110],
+    [670, 90],
+    [730, 80],
+    [780, 105],
+    [830, 85],
+    [870, 75],
   ];
   const ditoPts: [number, number][] = [
-    [30, 90], [90, 95], [150, 110], [210, 130], [270, 145], [330, 175],
-    [380, 150], [440, 140], [500, 135], [560, 165], [610, 150], [670, 130],
-    [730, 125], [780, 145], [830, 130], [870, 120],
+    [30, 90],
+    [90, 95],
+    [150, 110],
+    [210, 130],
+    [270, 145],
+    [330, 175],
+    [380, 150],
+    [440, 140],
+    [500, 135],
+    [560, 165],
+    [610, 150],
+    [670, 130],
+    [730, 125],
+    [780, 145],
+    [830, 130],
+    [870, 120],
   ];
 
   const providerConfig = [
-    { id: "globe", label: "Globe", color: "#1F4FFF", pts: globePts, dash: undefined as string | undefined },
-    { id: "smart", label: "Smart", color: "#E11D48", pts: smartPts, dash: undefined as string | undefined },
-    { id: "dito",  label: "DITO",  color: "#4F46E5", pts: ditoPts,  dash: "5 4"  as string | undefined },
+    {
+      id: "globe" as const,
+      label: PROVIDERS.globe.shortName,
+      color: PROVIDERS.globe.color,
+      pts: globePts,
+      dash: undefined as string | undefined,
+    },
+    {
+      id: "smart" as const,
+      label: PROVIDERS.smart.shortName,
+      color: PROVIDERS.smart.color,
+      pts: smartPts,
+      dash: undefined as string | undefined,
+    },
+    {
+      id: "dito" as const,
+      label: PROVIDERS.dito.shortName,
+      color: PROVIDERS.dito.color,
+      pts: ditoPts,
+      dash: "5 4" as string | undefined,
+    },
   ];
 
   const deadZones = [
     { x: 305, w: 50, label: "Dead zone", color: "#D03737" },
-    { x: 555, w: 40, label: "Patchy",    color: "#C77700" },
-    { x: 755, w: 32, label: "Patchy",    color: "#C77700" },
+    { x: 555, w: 40, label: "Patchy", color: "#C77700" },
+    { x: 755, w: 32, label: "Patchy", color: "#C77700" },
   ];
 
   const axis: { km: string; place: string; highlight?: boolean }[] = [
-    { km: "0 km",   place: "Manila"   },
-    { km: "50 km",  place: "Tarlac"   },
-    { km: "78 km",  place: "Gap",  highlight: true },
-    { km: "120 km", place: "Dagupan"  },
-    { km: "160 km", place: "Aringay"  },
+    { km: "0 km", place: "Manila" },
+    { km: "50 km", place: "Tarlac" },
+    { km: "78 km", place: "Gap", highlight: true },
+    { km: "120 km", place: "Dagupan" },
+    { km: "160 km", place: "Aringay" },
     { km: "214 km", place: "La Union" },
   ];
 
@@ -378,7 +434,9 @@ function ForecastChart() {
       const cp1y = p1[1] + (p2[1] - p0[1]) * tension;
       const cp2x = p2[0] - (p3[0] - p1[0]) * tension;
       const cp2y = p2[1] - (p3[1] - p1[1]) * tension;
-      d.push(`C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2[0]} ${p2[1]}`);
+      d.push(
+        `C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2[0]} ${p2[1]}`,
+      );
     }
     return d.join(" ");
   }
@@ -398,9 +456,9 @@ function ForecastChart() {
   }
 
   function signalLabel(pct: number): { label: string; color: string } {
-    if (pct >= 65) return { label: "Strong",   color: "#16A34A" };
+    if (pct >= 65) return { label: "Strong", color: "#16A34A" };
     if (pct >= 35) return { label: "Moderate", color: "#D97706" };
-    return             { label: "Weak",     color: "#DC2626" };
+    return { label: "Weak", color: "#DC2626" };
   }
 
   function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
@@ -408,10 +466,14 @@ function ForecastChart() {
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
     const svgX = ((e.clientX - rect.left) / rect.width) * W;
-    if (svgX < 30 || svgX > 870) { setHover(null); return; }
+    if (svgX < 30 || svgX > 870) {
+      setHover(null);
+      return;
+    }
     const values: Record<string, number> = {};
     for (const p of providerConfig) {
-      if (activeProviders.has(p.id)) values[p.id] = yToSignal(getY(p.pts, svgX));
+      if (activeProviders.has(p.id))
+        values[p.id] = yToSignal(getY(p.pts, svgX));
     }
     setHover({ svgX, values });
   }
@@ -476,9 +538,17 @@ function ForecastChart() {
                   transition: "all 0.15s",
                 }}
               >
-                <svg width="18" height="8" viewBox="0 0 18 8" style={{ flexShrink: 0 }}>
+                <svg
+                  width="18"
+                  height="8"
+                  viewBox="0 0 18 8"
+                  style={{ flexShrink: 0 }}
+                >
                   <line
-                    x1="0" y1="4" x2="18" y2="4"
+                    x1="0"
+                    y1="4"
+                    x2="18"
+                    y2="4"
                     stroke={on ? "rgba(255,255,255,0.9)" : p.color}
                     strokeWidth="2.5"
                     strokeDasharray={p.dash}
@@ -493,13 +563,24 @@ function ForecastChart() {
       </div>
 
       {/* Chart */}
-      <div style={{ padding: "18px 18px 0", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div
+        style={{
+          padding: "18px 18px 0",
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
         <div style={{ position: "relative", minWidth: 520 }}>
           <svg
             ref={svgRef}
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="none"
-            style={{ width: "100%", height: 220, display: "block", cursor: "crosshair" }}
+            style={{
+              width: "100%",
+              height: 220,
+              display: "block",
+              cursor: "crosshair",
+            }}
             onMouseMove={handleMouseMove}
             onMouseLeave={() => setHover(null)}
             xmlns="http://www.w3.org/2000/svg"
@@ -516,16 +597,88 @@ function ForecastChart() {
             </defs>
 
             {/* Signal quality zone bands */}
-            <rect x="0" y="0"   width={W} height="70" fill="#22C55E" opacity="0.04" />
-            <rect x="0" y="70"  width={W} height="60" fill="#F59E0B" opacity="0.04" />
-            <rect x="0" y="130" width={W} height="70" fill="#EF4444" opacity="0.04" />
-            <line x1="0" y1="70"  x2={W} y2="70"  stroke="#22C55E" strokeWidth="0.5" strokeDasharray="3 4" opacity="0.35" />
-            <line x1="0" y1="130" x2={W} y2="130" stroke="#EF4444" strokeWidth="0.5" strokeDasharray="3 4" opacity="0.35" />
+            <rect
+              x="0"
+              y="0"
+              width={W}
+              height="70"
+              fill="#22C55E"
+              opacity="0.04"
+            />
+            <rect
+              x="0"
+              y="70"
+              width={W}
+              height="60"
+              fill="#F59E0B"
+              opacity="0.04"
+            />
+            <rect
+              x="0"
+              y="130"
+              width={W}
+              height="70"
+              fill="#EF4444"
+              opacity="0.04"
+            />
+            <line
+              x1="0"
+              y1="70"
+              x2={W}
+              y2="70"
+              stroke="#22C55E"
+              strokeWidth="0.5"
+              strokeDasharray="3 4"
+              opacity="0.35"
+            />
+            <line
+              x1="0"
+              y1="130"
+              x2={W}
+              y2="130"
+              stroke="#EF4444"
+              strokeWidth="0.5"
+              strokeDasharray="3 4"
+              opacity="0.35"
+            />
 
             {/* Zone labels */}
-            <text x={W - 6} y="36"  textAnchor="end" fontFamily="JetBrains Mono" fontSize="8" fill="#16A34A" opacity="0.6" fontWeight="600">STRONG</text>
-            <text x={W - 6} y="103" textAnchor="end" fontFamily="JetBrains Mono" fontSize="8" fill="#D97706" opacity="0.6" fontWeight="600">MODERATE</text>
-            <text x={W - 6} y="168" textAnchor="end" fontFamily="JetBrains Mono" fontSize="8" fill="#DC2626" opacity="0.6" fontWeight="600">WEAK</text>
+            <text
+              x={W - 6}
+              y="36"
+              textAnchor="end"
+              fontFamily="JetBrains Mono"
+              fontSize="8"
+              fill="#16A34A"
+              opacity="0.6"
+              fontWeight="600"
+            >
+              STRONG
+            </text>
+            <text
+              x={W - 6}
+              y="103"
+              textAnchor="end"
+              fontFamily="JetBrains Mono"
+              fontSize="8"
+              fill="#D97706"
+              opacity="0.6"
+              fontWeight="600"
+            >
+              MODERATE
+            </text>
+            <text
+              x={W - 6}
+              y="168"
+              textAnchor="end"
+              fontFamily="JetBrains Mono"
+              fontSize="8"
+              fill="#DC2626"
+              opacity="0.6"
+              fontWeight="600"
+            >
+              WEAK
+            </text>
 
             {/* Grid */}
             <g stroke="#EEF1F7" strokeWidth="0.75">
@@ -536,18 +689,42 @@ function ForecastChart() {
 
             {/* Y-axis labels */}
             <g fontFamily="JetBrains Mono" fontSize="9" fill="#94A3B8">
-              {([ ["100", 14], ["75", 54], ["50", 104], ["25", 154] ] as [string, number][]).map(([v, y]) => (
-                <text key={v} x="6" y={y}>{v}</text>
+              {(
+                [
+                  ["100", 14],
+                  ["75", 54],
+                  ["50", 104],
+                  ["25", 154],
+                ] as [string, number][]
+              ).map(([v, y]) => (
+                <text key={v} x="6" y={y}>
+                  {v}
+                </text>
               ))}
             </g>
 
             {/* Dead zone bands */}
             {deadZones.map((dz, i) => (
               <g key={i}>
-                <rect x={dz.x} y="0" width={dz.w} height={H} fill={dz.color} opacity="0.08" />
-                <rect x={dz.x} y="0" width={dz.w} height="3"  fill={dz.color} opacity="0.5" />
+                <rect
+                  x={dz.x}
+                  y="0"
+                  width={dz.w}
+                  height={H}
+                  fill={dz.color}
+                  opacity="0.08"
+                />
+                <rect
+                  x={dz.x}
+                  y="0"
+                  width={dz.w}
+                  height="3"
+                  fill={dz.color}
+                  opacity="0.5"
+                />
                 <text
-                  x={dz.x + dz.w / 2} y="18"
+                  x={dz.x + dz.w / 2}
+                  y="18"
                   textAnchor="middle"
                   fontFamily="JetBrains Mono"
                   fontSize="7.5"
@@ -562,10 +739,16 @@ function ForecastChart() {
 
             {/* Area fills */}
             {activeProviders.has("globe") && (
-              <path d={`${smoothPath(globePts)} L 870 ${H} L 30 ${H} Z`} fill="url(#fillGlobe)" />
+              <path
+                d={`${smoothPath(globePts)} L 870 ${H} L 30 ${H} Z`}
+                fill="url(#fillGlobe)"
+              />
             )}
             {activeProviders.has("smart") && (
-              <path d={`${smoothPath(smartPts)} L 870 ${H} L 30 ${H} Z`} fill="url(#fillSmart)" />
+              <path
+                d={`${smoothPath(smartPts)} L 870 ${H} L 30 ${H} Z`}
+                fill="url(#fillSmart)"
+              />
             )}
 
             {/* Provider lines */}
@@ -582,15 +765,21 @@ function ForecastChart() {
                   strokeLinecap="round"
                   opacity={p.id === "dito" ? 0.5 : 0.85}
                 />
-              ) : null
+              ) : null,
             )}
 
             {/* Hover tracker */}
             {hover && (
               <>
                 <line
-                  x1={hover.svgX} y1="0" x2={hover.svgX} y2={H}
-                  stroke="var(--ink)" strokeWidth="1" strokeDasharray="3 3" opacity="0.25"
+                  x1={hover.svgX}
+                  y1="0"
+                  x2={hover.svgX}
+                  y2={H}
+                  stroke="var(--ink)"
+                  strokeWidth="1"
+                  strokeDasharray="3 3"
+                  opacity="0.25"
                 />
                 {providerConfig.map((p) =>
                   activeProviders.has(p.id) ? (
@@ -603,7 +792,7 @@ function ForecastChart() {
                       stroke="white"
                       strokeWidth="2"
                     />
-                  ) : null
+                  ) : null,
                 )}
               </>
             )}
@@ -620,8 +809,8 @@ function ForecastChart() {
                   hover.svgX > W * 0.72
                     ? "translateX(-105%)"
                     : hover.svgX < W * 0.25
-                    ? "translateX(5%)"
-                    : "translateX(-50%)",
+                      ? "translateX(5%)"
+                      : "translateX(-50%)",
                 background: "rgba(11,18,32,0.92)",
                 backdropFilter: "blur(6px)",
                 color: "white",
@@ -641,9 +830,30 @@ function ForecastChart() {
                   const sig = hover.values[p.id];
                   const { label, color } = signalLabel(sig);
                   return (
-                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "1px 0" }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, display: "inline-block", flexShrink: 0 }} />
-                      <span style={{ color: "rgba(255,255,255,0.6)", minWidth: 40 }}>{p.label}</span>
+                    <div
+                      key={p.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        padding: "1px 0",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: p.color,
+                          display: "inline-block",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{ color: "rgba(255,255,255,0.6)", minWidth: 40 }}
+                      >
+                        {p.label}
+                      </span>
                       <span style={{ fontWeight: 700 }}>{sig}%</span>
                       <span style={{ color, fontSize: 10 }}>{label}</span>
                     </div>
@@ -667,8 +877,22 @@ function ForecastChart() {
           }}
         >
           {axis.map((a) => (
-            <div key={a.km} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-              <b style={{ color: a.highlight ? "#D03737" : "var(--ink)", fontWeight: 600, fontSize: 11 }}>
+            <div
+              key={a.km}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 2,
+              }}
+            >
+              <b
+                style={{
+                  color: a.highlight ? "#D03737" : "var(--ink)",
+                  fontWeight: 600,
+                  fontSize: 11,
+                }}
+              >
                 {a.km}
               </b>
               <span>{a.place}</span>
@@ -688,17 +912,44 @@ function ForecastChart() {
           alignItems: "center",
         }}
       >
-        <span style={{ fontSize: 10, color: "var(--ink-5)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        <span
+          style={{
+            fontSize: 10,
+            color: "var(--ink-5)",
+            fontFamily: "var(--mono)",
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+          }}
+        >
           Signal zones
         </span>
         {[
-          { color: "#16A34A", label: "Strong ≥65%",      dot: true  },
-          { color: "#D97706", label: "Moderate 35–65%",  dot: true  },
-          { color: "#DC2626", label: "Weak <35%",        dot: true  },
-          { color: "#D03737", label: "Dead zone",        dot: false },
+          { color: "#16A34A", label: "Strong ≥65%", dot: true },
+          { color: "#D97706", label: "Moderate 35–65%", dot: true },
+          { color: "#DC2626", label: "Weak <35%", dot: true },
+          { color: "#D03737", label: "Dead zone", dot: false },
         ].map(({ color, label, dot }) => (
-          <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--ink-4)" }}>
-            <span style={{ width: 10, height: 10, borderRadius: dot ? "50%" : 2, background: color, opacity: 0.75, display: "inline-block", flexShrink: 0 }} />
+          <div
+            key={label}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 11,
+              color: "var(--ink-4)",
+            }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: dot ? "50%" : 2,
+                background: color,
+                opacity: 0.75,
+                display: "inline-block",
+                flexShrink: 0,
+              }}
+            />
             {label}
           </div>
         ))}

@@ -340,15 +340,12 @@
 
 /* --- Provider tile --- */
 .prov-tile {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 9px;
-  color: white;
-  font-weight: 800;
-  font-size: 13px;
   display: grid;
   place-items: center;
-  letter-spacing: -0.4px;
+  background: transparent;
 }
 .prov-tile.globe {
   background: linear-gradient(135deg, #1e3a8a, #1f4fff);
@@ -358,6 +355,17 @@
 }
 .prov-tile.dito {
   background: linear-gradient(135deg, #1e1b4b, #4f46e5);
+}
+.prov-tile.tm {
+  background: linear-gradient(135deg, #0369a1, #0ea5e9);
+}
+.prov-tile.sun {
+  background: linear-gradient(135deg, #92400e, #f59e0b);
+}
+.prov-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 /* --- Gap icon --- */

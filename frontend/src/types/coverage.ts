@@ -11,8 +11,11 @@ import {
   Package,
   LucideIcon,
 } from "lucide-react";
+import type { ProviderId } from "../constants/providers";
+
 export type SignalLevel = "strong" | "patchy" | "dead" | "unknown";
-export type Provider = "globe" | "smart" | "dito";
+/** Alias for ProviderId — keeps existing imports working */
+export type Provider = ProviderId;
 export type NetworkGen = "5G" | "4G LTE" | "3G";
 export type TravelMode = "drive" | "bus" | "walk";
 export type MapLayer = "all" | Provider;

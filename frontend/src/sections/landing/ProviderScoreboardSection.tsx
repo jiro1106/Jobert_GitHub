@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { MOCK_ROUTE_FORECAST } from "../../types/coverage";
 import type { ProviderScore } from "../../types/coverage";
+import { PROVIDERS } from "../../constants/providers";
 
 type Scope = "route" | "dest" | "origin";
 
@@ -78,17 +79,13 @@ function ProviderCard({
     if (!el) return;
     const max = Math.max(...provider.sparklineData);
     while (el.firstChild) el.removeChild(el.firstChild);
+    const baseColor = PROVIDERS[provider.provider]?.color ?? "#94A3B8";
     provider.sparklineData.forEach((v) => {
       const s = document.createElement("span");
       const h = Math.max(3, (v / max) * 32);
       s.style.height = h + "px";
       s.style.borderRadius = "2px";
-      const colorMap: Record<string, string> = {
-        globe: "#1F4FFFcc",
-        smart: "#E11D48aa",
-        dito: "#4F46E599",
-      };
-      s.style.background = colorMap[provider.provider] ?? "#94A3B8";
+      s.style.background = baseColor + "bb";
       el.appendChild(s);
     });
   }, [provider]);
@@ -119,8 +116,12 @@ function ProviderCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-[14px]">
         <div className="flex items-center gap-2.5">
-          <div className={`prov-tile ${provider.provider}`}>
-            {provider.name[0]}
+          <div className="prov-tile">
+            <img
+              src={PROVIDERS[provider.provider]?.logo}
+              alt={provider.name}
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            />
           </div>
           <div>
             <div className="text-[15px] font-bold">{provider.name}</div>

@@ -1,12 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { MOCK_USE_CASES, MOCK_CHAT_MESSAGES } from "../../types/coverage";
 import type { ChatMessage } from "../../types/coverage";
-
-const PROVIDER_COLORS: Record<string, string> = {
-  globe: "#1F4FFF",
-  smart: "#E11D48",
-  dito: "#4F46E5",
-};
+import { PROVIDERS } from "../../constants/providers";
 
 const QUICK_PROMPTS = [
   "Which SIM for Baguio trip?",
@@ -98,12 +93,16 @@ export default function UseCasesSection() {
                 </div>
 
                 <div className="flex items-center gap-2 font-bold text-[13px]">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: PROVIDER_COLORS[uc.bestProvider] }}
+                  <img
+                    src={PROVIDERS[uc.bestProvider].logo}
+                    alt={PROVIDERS[uc.bestProvider].shortName}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      objectFit: "contain",
+                    }}
                   />
-                  {uc.bestProvider.charAt(0).toUpperCase() +
-                    uc.bestProvider.slice(1)}
+                  {PROVIDERS[uc.bestProvider].shortName}
                 </div>
               </div>
             ))}
