@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleMap, useLoadScript, OverlayView } from '@react-google-maps/api';
-import { RadioTower } from 'lucide-react';
 import CellTowerMapLayer from './CellTowerMarker';
+import FullscreenMap from './FullscreenMap';
 import MapControls from './controls/MapControls';
 import ProviderFilters from './controls/ProviderFilters';
 import type { Provider, SignalRange, Tower } from './types';
@@ -88,27 +88,16 @@ const GoogleMaps: React.FC<Props> = ({ onLocationChange }) => {
     libraries: LIBRARIES,
   });
 
-  const [mapRef, setMapRef]                 = useState<google.maps.Map | null>(null);
-  const [userLocation, setUserLocation]     = useState<{ lat: number; lng: number } | null>(null);
-  const [mapCenter, setMapCenter]           = useState(DEFAULT_CENTER);
-  const [selectedProvider, setProvider]     = useState<Provider>('All');
-  const [signalRange, setSignalRange]       = useState<SignalRange>('All');
-  const [mapType, setMapType]               = useState<MapType>('roadmap');
-  const [showLayers, setShowLayers]         = useState(true);
-  const [showTypeMenu, setShowTypeMenu]     = useState(false);
-  const [isFullscreen, setIsFullscreen]     = useState(false);
+  const [mapRef, setMapRef] = useState<google.maps.Map | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
+  const [selectedProvider, setProvider] = useState<Provider>('All');
+  const [signalRange, setSignalRange] = useState<SignalRange>('All');
+  const [mapType, setMapType] = useState<MapType>('roadmap');
+  const [showLayers, setShowLayers] = useState(true);
+  const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [hoveredTowerId, setHoveredTowerId] = useState<string | null>(null);
-  const [mapZoom, setMapZoom]               = useState(12);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    if (isFullscreen) {
-      document.body.style.overflow = 'hidden';
-    }
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isFullscreen]);
+  const [mapZoom, setMapZoom] = useState(12);
 
   // ── Geolocation ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -125,7 +114,7 @@ const GoogleMaps: React.FC<Props> = ({ onLocationChange }) => {
             `https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json`
           );
           const data = await res.json();
-          const city     = data.address?.city || data.address?.town || data.address?.municipality || 'Unknown';
+          const city = data.address?.city || data.address?.town || data.address?.municipality || 'Unknown';
           const province = data.address?.state || 'Unknown';
           onLocationChange?.({ ...loc, city, province });
         } catch {
@@ -178,103 +167,94 @@ const GoogleMaps: React.FC<Props> = ({ onLocationChange }) => {
     </div>
   );
 
-  const mapContainerStyle = {
-    width: '100%',
-    height: isFullscreen ? '100%' : '500px',
-  };
-
   return (
-    <div className={isFullscreen ? 'fixed inset-0 z-50' : 'relative'}>
-      <div
-        className={`relative overflow-hidden shadow-md transition-all duration-300 ${
-          isFullscreen
-            ? 'h-full w-full rounded-none bg-white'
-            : 'rounded-xl border border-gray-100'
-        }`}
-      >
-      {/* ── Signal Legend ────────────────────────────────────────────────── */}
-        <MapSearch map={mapRef} />
-      {/* ── Top-right controls ───────────────────────────────────────────── */}
-      <MapControls
-        mapType={mapType}
-        onMapTypeChange={(type) => {
-          setMapType(type);
-          setShowTypeMenu(false);
-        }}
-        showMapTypeMenu={showTypeMenu}
-        onToggleMapTypeMenu={() => setShowTypeMenu((value) => !value)}
-        showLayers={showLayers}
-        onToggleLayers={() => setShowLayers((value) => !value)}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={() => setIsFullscreen((value) => !value)}
-        onRecenter={recenter}
-        canRecenter={Boolean(userLocation)}
-      />
-
-      {/* ── Map ──────────────────────────────────────────────────────────── */}
-      <GoogleMap
-        mapContainerStyle={mapContainerStyle}
-        center={mapCenter}
-        zoom={12}
-        mapTypeId={mapType}
-        onLoad={onMapLoad}
-        onZoomChanged={() => {
-          if (mapRef) {
-            setMapZoom(mapRef.getZoom() ?? 12);
-          }
-        }}
-        onClick={() => setShowTypeMenu(false)}
-        options={{
-          disableDefaultUI: true,
-          clickableIcons: false,
-          styles: mapType === 'roadmap' ? ROAD_MAP_STYLES : undefined,
-        }}
-      >
-        {showLayers && mapRef && (
-          <SignalHeatmap
-            map={mapRef}
-            towers={filteredTowers}
-            zoom={mapZoom}
+    <FullscreenMap>
+      {({ isFullscreen, mapContainerStyle, toggleFullscreen }) => (
+        <>
+          {/* ── Signal Legend ────────────────────────────────────────────────── */}
+          <MapSearch map={mapRef} />
+          {/* ── Top-right controls ───────────────────────────────────────────── */}
+          <MapControls
+            mapType={mapType}
+            onMapTypeChange={(type) => {
+              setMapType(type);
+              setShowTypeMenu(false);
+            }}
+            showMapTypeMenu={showTypeMenu}
+            onToggleMapTypeMenu={() => setShowTypeMenu((value) => !value)}
+            showLayers={showLayers}
+            onToggleLayers={() => setShowLayers((value) => !value)}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={toggleFullscreen}
+            onRecenter={recenter}
+            canRecenter={Boolean(userLocation)}
           />
-        )}
-        {/* Heatmap rings + tower icons */}
-        {showLayers && (
-          <CellTowerMapLayer 
-            towers={filteredTowers} 
-            hoveredTowerId={hoveredTowerId} 
-            onHoverChange={setHoveredTowerId} 
-            providerColors={PROVIDER_COLORS} 
-            zoom={mapZoom} 
-          />
-        )}
 
-        {/* User location pulse */}
-        {userLocation && (
-          <OverlayView
-            position={userLocation}
-            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-            getPixelPositionOffset={getPixelCenter}
+          {/* ── Map ──────────────────────────────────────────────────────────── */}
+          <GoogleMap
+            mapContainerStyle={mapContainerStyle}
+            center={mapCenter}
+            zoom={12}
+            mapTypeId={mapType}
+            onLoad={onMapLoad}
+            onZoomChanged={() => {
+              if (mapRef) {
+                setMapZoom(mapRef.getZoom() ?? 12);
+              }
+            }}
+            onClick={() => setShowTypeMenu(false)}
+            options={{
+              disableDefaultUI: true,
+              clickableIcons: false,
+              styles: mapType === 'roadmap' ? ROAD_MAP_STYLES : undefined,
+            }}
           >
-            <div className="relative flex items-center justify-center w-8 h-8">
-              <div className="absolute inset-0 bg-blue-500/30 rounded-full animate-ping" />
-              <div className="absolute inset-1 bg-blue-400/20 rounded-full" />
-              <div className="w-3.5 h-3.5 bg-blue-600 rounded-full border-2 border-white shadow-lg relative z-10" />
-            </div>
-          </OverlayView>
-        )}
-      </GoogleMap>
+            {showLayers && mapRef && (
+              <SignalHeatmap
+                map={mapRef}
+                towers={filteredTowers}
+                zoom={mapZoom}
+              />
+            )}
+            {/* Heatmap rings + tower icons */}
+            {showLayers && (
+              <CellTowerMapLayer
+                towers={filteredTowers}
+                hoveredTowerId={hoveredTowerId}
+                onHoverChange={setHoveredTowerId}
+                providerColors={PROVIDER_COLORS}
+                zoom={mapZoom}
+              />
+            )}
 
-      {/* ── Provider Filter ───────────────────────────────────────────────── */}
-      <ProviderFilters
-        selectedProvider={selectedProvider}
-        onProviderChange={setProvider}
-        signalRange={signalRange}
-        onSignalRangeChange={setSignalRange}
-        providerStyles={PROVIDER_FILTER_STYLES}
-        signalStyles={SIGNAL_FILTER_STYLES}
-      />
-      </div>
-    </div>
+            {/* User location pulse */}
+            {userLocation && (
+              <OverlayView
+                position={userLocation}
+                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                getPixelPositionOffset={getPixelCenter}
+              >
+                <div className="relative flex items-center justify-center w-8 h-8">
+                  <div className="absolute inset-0 bg-blue-500/30 rounded-full animate-ping" />
+                  <div className="absolute inset-1 bg-blue-400/20 rounded-full" />
+                  <div className="w-3.5 h-3.5 bg-blue-600 rounded-full border-2 border-white shadow-lg relative z-10" />
+                </div>
+              </OverlayView>
+            )}
+          </GoogleMap>
+
+          {/* ── Provider Filter ───────────────────────────────────────────────── */}
+          <ProviderFilters
+            selectedProvider={selectedProvider}
+            onProviderChange={setProvider}
+            signalRange={signalRange}
+            onSignalRangeChange={setSignalRange}
+            providerStyles={PROVIDER_FILTER_STYLES}
+            signalStyles={SIGNAL_FILTER_STYLES}
+          />
+        </>
+      )}
+    </FullscreenMap>
   );
 };
 
