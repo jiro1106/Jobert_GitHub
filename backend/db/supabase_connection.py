@@ -184,7 +184,7 @@ def query_towers_near_bbox(
             if mcc == 515:
                 if mnc in (1, 2, 88):
                     provider = "Globe"
-                elif mnc in (3, 5, 11):
+                elif mnc in (3, 5, 11, 17):
                     provider = "Smart"
                 elif mnc == 66:
                     provider = "DITO"

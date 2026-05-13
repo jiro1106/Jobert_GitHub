@@ -73,16 +73,8 @@ async def get_nearby_reports(
 async def get_route_forecast(request: RouteAnalysisRequest):
     """
     Get route forecast with provider recommendations and signal gaps
-    
-    This endpoint analyzes signal coverage along a route and returns:
-    - Origin and destination endpoints
-    - Trip summary (distance, time, signal strength)
-    - Best provider recommendation
-    - Signal gaps and dead zones
-    - Per-provider scores and metrics
     """
     try:
-        # Call the raw analysis service
         raw_analysis = analyze_route(
             origin={
                 "latitude": request.origin.latitude,
@@ -99,10 +91,21 @@ async def get_route_forecast(request: RouteAnalysisRequest):
             ] if request.route_points else None,
             radius_km=request.radius_km,
         )
-        
-        # Transform to frontend RouteForecast shape
+
+        # Debug: log key analysis stats
+        provider_scores = raw_analysis.get("provider_scores", {})
+        towers_found = raw_analysis.get("candidate_tower_count", 0)
+        print(f"[route/forecast] towers={towers_found}, providers={list(provider_scores.keys())}, points={len(raw_analysis.get('route_points', []))}")
+
         forecast = transform_route_analysis_to_forecast(raw_analysis)
-        
+
+        # Validate shape before sending to frontend
+        missing = [k for k in ("summary", "recommendation", "gaps", "providers") if not forecast.get(k)]
+        if missing:
+            print(f"[route/forecast] WARNING - transformer returned incomplete shape, missing: {missing}")
+        else:
+            print(f"[route/forecast] OK - strongSignalPct={forecast['summary'].get('strongSignalPct')}, best={forecast['recommendation'].get('name')}")
+
         return success_response(
             data=forecast,
             message="Route forecast generated successfully"

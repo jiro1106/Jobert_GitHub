@@ -38,9 +38,40 @@ def generate_recommendation_text(provider_scores: dict[str, Any], weak_segments:
     best_provider = choose_best_provider(provider_scores)
     if best_provider == "Unknown":
         return "No tower evidence was found for this location."
+
+    score_data = provider_scores.get(best_provider, {})
+    score_val = float(score_data.get("score", 0)) if isinstance(score_data, dict) else 0.0
+    confidence = float(score_data.get("data_confidence", 1.0)) if isinstance(score_data, dict) else 1.0
+
+    # Build ranked list for comparison context
+    ranked = sorted(
+        [(name, float(d.get("score", 0))) for name, d in provider_scores.items() if isinstance(d, dict)],
+        key=lambda x: x[1], reverse=True
+    )
+
+    if confidence < 0.5:
+        caveat = " Note: coverage data in this area is sparse — this is a low-confidence estimate."
+    elif confidence < 0.8:
+        caveat = " Limited tower data was found nearby, so treat this as a rough estimate."
+    else:
+        caveat = ""
+
     if weak_segments:
-        return f"{best_provider} is recommended, but a few weak segments were detected along the route."
-    return f"{best_provider} is recommended for this route."
+        quality = f"{best_provider} is recommended, but {len(weak_segments)} weak-signal segment(s) were detected along the route."
+    elif score_val >= 60:
+        quality = f"{best_provider} is the best option for this area with solid coverage."
+    elif score_val >= 35:
+        quality = f"{best_provider} has moderate coverage here — usable but not outstanding."
+    else:
+        quality = f"{best_provider} edges out the competition, though all providers show limited signal here."
+
+    # Add the runner-up if there is one
+    if len(ranked) >= 2:
+        runner_name, runner_score = ranked[1]
+        if runner_score > 0:
+            quality += f" {runner_name} is the next best alternative (score: {runner_score:.0f})."
+
+    return quality + caveat
 
 
 def generate_explanation_text(
@@ -52,14 +83,41 @@ def generate_explanation_text(
     if best_provider == "Unknown":
         return "The backend could not find enough nearby towers or reports to rank providers reliably."
 
-    best_score = provider_scores[best_provider]["score"]
-    nearest_tower = min((tower.get("distance_meters", 0.0) for tower in closest_towers), default=0.0)
-    report_summary = summarize_reports(nearby_reports)
-    return (
-        f"{best_provider} leads the provider ranking with a score of {best_score:.2f}. "
-        f"Nearest matching tower is about {nearest_tower:.1f} m away. "
-        f"Nearby reports counted: {report_summary['total_reports']}."
+    score_data = provider_scores.get(best_provider, {})
+    best_score = float(score_data.get("score", 0)) if isinstance(score_data, dict) else 0.0
+    confidence = float(score_data.get("data_confidence", 1.0)) if isinstance(score_data, dict) else 1.0
+    tower_count = len(closest_towers)
+
+    nearest_tower = min(
+        (tower.get("distance_meters", 0.0) for tower in closest_towers),
+        default=None,
     )
+    report_summary = summarize_reports(nearby_reports)
+    report_count = report_summary.get("total_reports", 0)
+
+    # Build a readable confidence note
+    if confidence < 0.35:
+        data_note = f"Only {tower_count} tower match(es) found — confidence is very low."
+    elif confidence < 0.65:
+        data_note = f"{tower_count} tower match(es) found nearby — limited coverage data, estimate may be rough."
+    elif confidence < 0.85:
+        data_note = f"{tower_count} tower match(es) used — moderate data density."
+    else:
+        data_note = f"{tower_count} tower match(es) — good data density."
+
+    parts = [
+        f"{best_provider} scores highest at {best_score:.0f}/100.",
+        data_note,
+    ]
+    if nearest_tower is not None:
+        parts.append(f"Nearest {best_provider} tower is ~{nearest_tower:.0f} m away.")
+    if report_count > 0:
+        most_rep = report_summary.get("most_reported_provider")
+        parts.append(f"{report_count} community report(s) nearby; {most_rep} is most-reported.")
+    else:
+        parts.append("No community reports found in this area.")
+
+    return " ".join(parts)
 
 
 def generate_offline_readiness_alerts(

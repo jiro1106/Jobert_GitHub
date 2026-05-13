@@ -4,8 +4,13 @@ from math import asin, cos, radians, sin, sqrt
 from typing import Any
 
 PROVIDER_BY_NET = {
+    1: "Globe",
     2: "Globe",
+    88: "Globe",  # TM (Touch Mobile) sub-brand
     3: "Smart",
+    5: "Smart",
+    11: "Smart",  # Sun Cellular sub-brand
+    17: "Smart",  # TNT sub-brand
     66: "DITO",
 }
 

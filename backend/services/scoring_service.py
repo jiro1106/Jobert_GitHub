@@ -128,6 +128,35 @@ def detect_weak_segments(
     return weak_segments
 
 
+def _data_confidence_factor(tower_match_count: int, total_route_points: int) -> float:
+    """
+    Returns a dampening multiplier (0.0–1.0) based on how sparse the tower data is.
+
+    A single tower matched to a single route point has very low confidence in
+    real-world terms. We scale down the raw score so a near-empty DB doesn't
+    produce unrealistic 100/100 results.
+
+    Thresholds (empirical):
+      ≥ 10 matches → full confidence (1.0)
+       5-9  matches → moderate (0.80)
+       3-4  matches → reduced  (0.60)
+       2    matches → low      (0.45)
+       1    match   → minimal  (0.30)
+       0    matches → 0.0
+    """
+    if tower_match_count <= 0:
+        return 0.0
+    if tower_match_count == 1:
+        return 0.30
+    if tower_match_count == 2:
+        return 0.45
+    if tower_match_count <= 4:
+        return 0.60
+    if tower_match_count <= 9:
+        return 0.80
+    return 1.0
+
+
 def calculate_provider_scores(
     closest_towers: list[dict[str, Any]],
     nearby_reports: list[dict[str, Any]],
@@ -141,6 +170,10 @@ def calculate_provider_scores(
     ]
 
     total_route_points = max(1, len(route_point_orders))
+
+    # Total candidate towers tells us how data-rich this area is.
+    # A handful of towers (sparse DB) should dampen all scores globally.
+    total_candidates = len(closest_towers)
 
     provider_scores: dict[str, dict[str, Any]] = {}
 
@@ -181,11 +214,20 @@ def calculate_provider_scores(
             )
 
         # final: 70% avg signal + 20% coverage rate + 10% matched rate
-        final_score = (
+        raw_score = (
             average_signal_across_route * 0.70
             + coverage_rate * 20.0
             + matched_rate * 10.0
         )
+
+        # Apply sparsity dampening so a single tower never yields 100/100.
+        # We use the GLOBAL candidate count (all providers) to judge data density;
+        # a 1-tower DB should cap every provider's score accordingly.
+        confidence = _data_confidence_factor(
+            tower_match_count=total_candidates,
+            total_route_points=total_route_points,
+        )
+        final_score = raw_score * confidence
 
         provider_scores[provider_name] = {
             "score": round(min(100.0, max(0.0, final_score)), 2),
@@ -199,6 +241,7 @@ def calculate_provider_scores(
             "nearest_tower_m": nearest_tower_m,
             "within_range_count": len(covered_point_orders),
             "report_adjustment": 0.0,
+            "data_confidence": round(confidence, 2),
         }
 
     provider_scores = apply_report_adjustments(provider_scores, nearby_reports)

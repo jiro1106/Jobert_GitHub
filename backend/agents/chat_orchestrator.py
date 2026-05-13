@@ -251,6 +251,7 @@ class ChatOrchestrator:
             coverage=coverage,
             offline=offline,
             anomaly=anomaly,
+            report_summarizer=agent_outputs.get("report_summarizer", {}),
         )
 
         return {
@@ -302,40 +303,84 @@ class ChatOrchestrator:
         coverage: dict[str, Any],
         offline: dict[str, Any],
         anomaly: dict[str, Any],
+        report_summarizer: dict[str, Any] | None = None,
     ) -> str:
-        parts = []
-
-        # Lead with SIM recommendation
+        best = sim_rec.get("recommended_provider", "Unknown")
+        score = float(sim_rec.get("score", 0))
+        confidence = sim_rec.get("confidence", "low")
+        ranked = sim_rec.get("ranked_providers", [])
+        caveats = sim_rec.get("caveats", [])
         rec_summary = sim_rec.get("summary", "")
-        if rec_summary:
-            parts.append(rec_summary)
 
-        # Add coverage explanation
-        cov_exp = coverage.get("coverage_explanation", "")
-        if cov_exp and cov_exp != rec_summary:
-            parts.append(cov_exp)
-
-        # Add offline readiness if relevant
-        offline_summary = offline.get("summary", "")
-        if offline_summary and offline.get("readiness_level") not in ("minimal", None):
-            parts.append(offline_summary)
-
-        # Add anomaly note if detected
-        if anomaly.get("anomaly_status") in ("possible", "logged"):
-            parts.append(f"⚠️ Note: {anomaly.get('explanation', '')}")
-
-        rep = agent_outputs.get("report_summarizer", {})
-        if isinstance(rep, dict):
-            rep_summary = str(rep.get("summary", "") or "").strip()
-            if rep.get("has_reports") and rep_summary:
-                blob = " ".join(parts)
-                if rep_summary not in blob:
-                    parts.append(rep_summary)
-
-        if not parts:
+        # No usable data at all
+        if best == "Unknown" or score == 0:
             return (
-                "Analysis complete. "
-                f"Best provider for this area: {sim_rec.get('recommended_provider', 'Unknown')}."
+                "I couldn't find enough tower or report data for that location. "
+                "Try naming a Philippine city (e.g. Baguio, EDSA, Cebu) or selecting a route on the map."
+            )
+
+        # ── Lead sentence ──────────────────────────────────────────────────────
+        if rec_summary:
+            lead = rec_summary
+        else:
+            lead = f"{best} is the recommended provider for this area."
+
+        parts = [lead]
+
+        # ── Score context with realistic framing ───────────────────────────────
+        if confidence == "high":
+            score_note = f"It scores {score:.0f}/100 based on nearby tower data."
+        elif confidence == "medium":
+            score_note = (
+                f"It scores {score:.0f}/100 — moderate confidence "
+                f"(limited tower data in this area)."
+            )
+        else:
+            score_note = (
+                f"It scores {score:.0f}/100, but confidence is low — "
+                "sparse tower data means this is a rough estimate."
+            )
+        parts.append(score_note)
+
+        # ── Ranked alternatives ────────────────────────────────────────────────
+        alts = [r for r in ranked if r["provider"] != best and r["score"] > 0]
+        if alts:
+            alt_parts = ", ".join(
+                f"{r['provider']} ({r['score']:.0f})" for r in alts[:2]
+            )
+            parts.append(f"Alternatives: {alt_parts}.")
+
+        # ── Coverage explainer (key evidence) — keep brief ─────────────────────
+        cov_exp = coverage.get("coverage_explanation", "")
+        if cov_exp and cov_exp not in " ".join(parts):
+            # Trim to 1 sentence max to avoid repetition
+            first_sentence = cov_exp.split(".")[0].strip()
+            if first_sentence:
+                parts.append(first_sentence + ".")
+
+        # ── Weak segments / offline readiness ─────────────────────────────────
+        if caveats:
+            parts.append(" ".join(caveats[:2]))
+        else:
+            offline_summary = offline.get("summary", "")
+            if offline_summary and offline.get("readiness_level") not in ("minimal", None):
+                parts.append(offline_summary)
+
+        # ── Anomaly note ───────────────────────────────────────────────────────
+        if anomaly.get("anomaly_status") in ("possible", "logged"):
+            parts.append(f"⚠️ {anomaly.get('explanation', 'A signal anomaly was flagged for this area.')}")
+
+        # ── Community reports ──────────────────────────────────────────────────
+        rep = report_summarizer or {}
+        if isinstance(rep, dict) and rep.get("has_reports"):
+            rep_summary = str(rep.get("summary", "") or "").strip()
+            if rep_summary and rep_summary not in " ".join(parts):
+                parts.append(rep_summary)
+
+        # ── Closing nudge for sparse data ─────────────────────────────────────
+        if confidence == "low":
+            parts.append(
+                "Select a route on the map for a more detailed analysis once more tower data is available."
             )
 
         return " ".join(parts)

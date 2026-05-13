@@ -73,13 +73,17 @@ export default function MapSection() {
       if (ac.signal.aborted) return;
       const strongRaw = result?.summary?.strongSignalPct;
       const strong = typeof strongRaw === "number" ? strongRaw : Number(strongRaw);
-      if (
-        result?.summary &&
-        result.recommendation &&
+      // Be explicit about what fails for debugging
+      const hasValidShape =
+        result?.summary != null &&
+        result?.recommendation != null &&
+        typeof result.recommendation.name === "string" &&
         Array.isArray(result.gaps) &&
         Array.isArray(result.providers) &&
-        Number.isFinite(strong)
-      ) {
+        result.providers.length > 0 &&
+        Number.isFinite(strong);
+
+      if (hasValidShape) {
         setForecast({
           ...result,
           summary: {
@@ -91,8 +95,18 @@ export default function MapSection() {
           },
         });
         setHasLiveData(true);
+        setError(null);
       } else {
-        console.warn("API returned unexpected data shape, keeping mock data:", result);
+        console.warn("API shape check failed — fields:", {
+          hasSummary: !!result?.summary,
+          hasRecommendation: !!result?.recommendation,
+          recommendationName: result?.recommendation?.name,
+          gapsIsArray: Array.isArray(result?.gaps),
+          providersIsArray: Array.isArray(result?.providers),
+          providersLength: result?.providers?.length,
+          strong,
+          result,
+        });
         setError("Backend returned incomplete data — showing estimated forecast.");
       }
     } catch (err) {

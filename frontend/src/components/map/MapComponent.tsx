@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L, { type Map as LeafletMap } from 'leaflet';
 import FullscreenMap from './FullscreenMap';
@@ -11,6 +11,7 @@ import MapSearchLeaflet, {
   type RouteMetricsFromMap,
 } from './search/MapSearchLeaflet';
 import HeatmapLayer from './HeatmapLayer';
+import { getNearbyTowers } from '../../lib/api';
 
 export type { RouteMetricsFromMap };
 
@@ -115,7 +116,8 @@ const MapEvents: React.FC<{
   onZoomChange: (zoom: number) => void;
   onMapClick: () => void;
   onReady: (map: LeafletMap) => void;
-}> = ({ mapRef, onZoomChange, onMapClick, onReady }) => {
+  onMoveEnd: (map: LeafletMap) => void;
+}> = ({ mapRef, onZoomChange, onMapClick, onReady, onMoveEnd }) => {
   const map = useMap();
 
   useEffect(() => {
@@ -124,7 +126,11 @@ const MapEvents: React.FC<{
   }, [map, mapRef, onReady]);
 
   useMapEvents({
-    zoomend: () => onZoomChange(map.getZoom()),
+    zoomend: () => {
+      onZoomChange(map.getZoom());
+      onMoveEnd(map);
+    },
+    moveend: () => onMoveEnd(map),
     click: () => onMapClick(),
   });
 
@@ -171,6 +177,51 @@ const MapComponent: React.FC<Props> = ({
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [hoveredTowerId, setHoveredTowerId] = useState<string | null>(null);
   const [mapZoom, setMapZoom] = useState(12);
+
+  // ── Live towers from API ──────────────────────────────────────────────────
+  type LiveTower = {
+    id: string;
+    provider: string;
+    lat: number;
+    lng: number;
+    signal_strength?: number;
+    distance_km?: number;
+  };
+  const [liveTowers, setLiveTowers] = useState<LiveTower[]>([]);
+  const liveFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchLiveTowers = useCallback(async (lat: number, lng: number, zoom: number) => {
+    // Only fetch when zoomed in enough to be useful
+    if (zoom < 11) return;
+    try {
+      const radius = zoom >= 14 ? 2 : zoom >= 12 ? 5 : 10;
+      const result = await getNearbyTowers(lat, lng, radius, 200);
+      setLiveTowers(result.towers.map(t => ({
+        id: String(t.id),
+        provider: t.provider,
+        lat: t.latitude,
+        lng: t.longitude,
+        signal_strength: t.signal_strength,
+        distance_km: t.distance_km,
+      })));
+    } catch {
+      // Silently ignore — backend may not be running
+    }
+  }, []);
+
+  // Initial live fetch on mount
+  useEffect(() => {
+    fetchLiveTowers(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng, 12);
+  }, [fetchLiveTowers]);
+
+  const handleMapMoveEnd = useCallback((map: LeafletMap) => {
+    if (liveFetchTimer.current) clearTimeout(liveFetchTimer.current);
+    liveFetchTimer.current = setTimeout(() => {
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      fetchLiveTowers(center.lat, center.lng, zoom);
+    }, 600);
+  }, [fetchLiveTowers]);
 
   // ── Geolocation ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -321,6 +372,7 @@ const MapComponent: React.FC<Props> = ({
               onZoomChange={setMapZoom}
               onMapClick={() => setShowTypeMenu(false)}
               onReady={setMapInstance}
+              onMoveEnd={handleMapMoveEnd}
             />
 
             {/* Heatmap + tower icons */}
@@ -406,6 +458,59 @@ const MapComponent: React.FC<Props> = ({
                 </CircleMarker>
               </>
             )}
+
+            {/* ── Live API tower pins ──────────────────────────────────── */}
+            {showLayers && liveTowers
+              .filter(t =>
+                selectedProvider === 'All' || t.provider === selectedProvider
+              )
+              .map(tower => {
+                const providerKey = tower.provider as Exclude<Provider, 'All'>;
+                const colors = PROVIDER_COLORS[providerKey] ?? {
+                  solid: '#16A34A', light: '#dcfce7',
+                };
+                const icon = L.divIcon({
+                  className: '',
+                  html: `
+                    <div style="
+                      width:32px;height:32px;border-radius:9999px;
+                      border:2.5px solid ${colors.solid};
+                      background:${colors.light};
+                      box-shadow:0 0 0 4px ${colors.solid}33, 0 0 14px ${colors.solid}55;
+                      display:flex;align-items:center;justify-content:center;
+                    ">
+                      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'
+                        stroke='${colors.solid}' stroke-width='2.2'
+                        stroke-linecap='round' stroke-linejoin='round'
+                        width='18' height='18'>
+                        <path d='M4.9 19.1a11 11 0 0 1 0-14.2'/>
+                        <path d='M7.8 16.2a7 7 0 0 1 0-8.4'/>
+                        <path d='M16.2 7.8a7 7 0 0 1 0 8.4'/>
+                        <path d='M19.1 4.9a11 11 0 0 1 0 14.2'/>
+                        <circle cx='12' cy='12' r='2'/>
+                        <path d='M12 14v7'/>
+                      </svg>
+                    </div>
+                  `,
+                  iconSize: [32, 32],
+                  iconAnchor: [16, 16],
+                });
+                const distText = tower.distance_km != null
+                  ? `${(tower.distance_km * 1000).toFixed(0)} m away`
+                  : '';
+                return (
+                  <Marker
+                    key={`live-${tower.id}`}
+                    position={[tower.lat, tower.lng]}
+                    icon={icon}
+                  >
+                    <Tooltip direction="top" offset={[0, -10]} opacity={1}>
+                      📡 {tower.provider} · Live tower{distText ? ` · ${distText}` : ''}
+                    </Tooltip>
+                  </Marker>
+                );
+              })
+            }
           </MapContainer>
 
           {/* ── Provider Filter ───────────────────────────────────────────────── */}
