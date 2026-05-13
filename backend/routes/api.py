@@ -107,9 +107,9 @@ async def get_route_forecast(request: RouteAnalysisRequest):
             data=forecast,
             message="Route forecast generated successfully"
         )
-    except Exception as e:
+    except Exception:
         return success_response(
-            data={"error": str(e)},
+            data={"error": "Internal error"},
             message="Error generating route forecast"
         )
 
@@ -144,9 +144,9 @@ async def get_provider_scores(
             data=provider_data,
             message="Provider scores retrieved successfully"
         )
-    except Exception as e:
+    except Exception:
         return success_response(
-            data={"error": str(e)},
+            data={"error": "Internal error"},
             message="Error retrieving provider scores"
         )
 
@@ -165,9 +165,9 @@ async def get_platform_stats():
             data=stats_data,
             message="Platform statistics retrieved successfully"
         )
-    except Exception as e:
+    except Exception:
         return success_response(
-            data={"error": str(e)},
+            data={"error": "Internal error"},
             message="Error retrieving platform statistics"
         )
 
@@ -194,8 +194,8 @@ async def post_chat_message(request: ChatRequest):
             data=response,
             message="Chat response generated successfully"
         )
-    except Exception as e:
+    except Exception:
         return success_response(
-            data={"error": str(e)},
+            data={"error": "Internal error"},
             message="Error generating chat response"
         )
