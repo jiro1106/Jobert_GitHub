@@ -1,17 +1,21 @@
 """Signal PH Backend API - Main Application"""
+import sys
+from pathlib import Path
 from contextlib import asynccontextmanager
+
+# Add parent directory to sys.path to allow imports from backend package
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .config.settings import get_settings
-from .middleware.auth import error_handler_middleware
-from .routes.api import router as api_router
-from .services.route_service import analyze_point, analyze_route
-from .utils.helpers import error_response, success_response
-from pydantic import BaseModel, Field
+from backend.config.settings import get_settings
+from backend.middleware.auth import error_handler_middleware
+from backend.routes.api import router as api_router
+from backend.services.route_service import analyze_point, analyze_route
+from backend.utils.helpers import error_response, success_response
 
 settings = get_settings()
 
