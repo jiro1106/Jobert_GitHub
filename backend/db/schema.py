@@ -91,6 +91,14 @@ SCHEMA_STATEMENTS = (
 
 
 def create_database(drop_legacy_tables: bool = False) -> None:
+    """Create database schema - only needed for SQLite fallback"""
+    from .connection import USE_SUPABASE
+    
+    if USE_SUPABASE:
+        # Supabase tables should already exist
+        print("Using Supabase - skipping local database setup")
+        return
+    
     connection = get_connection()
     cursor = connection.cursor()
 

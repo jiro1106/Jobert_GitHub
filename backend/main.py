@@ -1,122 +1,188 @@
-from __future__ import annotations
+"""Signal PH Backend API - Main Application"""
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 
-from typing import Any
+from config.settings import get_settings
+from middleware.auth import error_handler_middleware
+from utils.helpers import success_response, error_response
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-
-from .agents.question_router_agent import QuestionRouterAgent
-from .db.anomaly_repository import insert_anomaly_log
-from .db.connection import get_connection
-from .db.report_repository import get_recent_reports, insert_report
-from .db.schema import create_database
-from .services.route_service import analyze_point, analyze_route
-
-app = FastAPI(title="SignalPH API", version="0.1.0")
+# Load settings
+settings = get_settings()
 
 
-def dump_model(model: Any) -> dict[str, Any]:
-    model_dump = getattr(model, "model_dump", None)
-    if callable(model_dump):
-        return model_dump()
-    return model.dict()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan context manager"""
+    yield
+    # Shutdown cleanup if needed
 
 
-class PointAnalysisRequest(BaseModel):
-    latitude: float
-    longitude: float
-    radius_km: float = Field(default=5.0, ge=0.1, le=50.0)
+# Initialize FastAPI app
+app = FastAPI(
+    title="Signal PH API",
+    description="Backend API for Signal PH - Crowdsourced cellular signal monitoring",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Configure CORS
+allowed_origins = (
+    ["*"] if settings.debug 
+    else ["http://localhost:5173", "http://localhost:3000"]  # Update with frontend URLs
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Add error handling middleware
+app.middleware("http")(error_handler_middleware)
 
 
-class RouteCoordinate(BaseModel):
-    latitude: float
-    longitude: float
+# Import routes
+# from routes import api
+# app.include_router(api.router, prefix="/api/v1")
 
 
-class RouteAnalysisRequest(BaseModel):
-    origin: RouteCoordinate
-    destination: RouteCoordinate
-    route_points: list[RouteCoordinate] | None = None
-    radius_km: float = Field(default=5.0, ge=0.1, le=50.0)
-
-
-class ReportCreateRequest(BaseModel):
-    latitude: float
-    longitude: float
-    provider_name: str | None = None
-    signal_feedback: str | None = None
-    speed_feedback: str | None = None
-    issue_type: str | None = None
-    user_notes: str | None = None
-    source_type: str = "user_report"
-
-
-class AgentQuestionRequest(BaseModel):
-    question: str
-    latitude: float | None = None
-    longitude: float | None = None
-    radius_km: float = Field(default=5.0, ge=0.1, le=50.0)
-
-
-@app.on_event("startup")
-def startup_event() -> None:
-    create_database()
+@app.get("/")
+async def root():
+    """Root endpoint - health check"""
+    return success_response(
+        data={"status": "running", "environment": settings.app_env},
+        message="Signal PH API is running"
+    )
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    connection = get_connection()
-    connection.close()
-    return {"status": "ok"}
-
-
-@app.post("/analyze/point")
-def analyze_point_endpoint(payload: PointAnalysisRequest) -> dict[str, Any]:
-    return analyze_point(payload.latitude, payload.longitude, payload.radius_km)
-
-
-@app.post("/analyze/route")
-def analyze_route_endpoint(payload: RouteAnalysisRequest) -> dict[str, Any]:
-    route_points = (
-        [dump_model(point) for point in payload.route_points]
-        if payload.route_points is not None
-        else None
-    )
-    return analyze_route(
-        origin=dump_model(payload.origin),
-        destination=dump_model(payload.destination),
-        route_points=route_points,
-        radius_km=payload.radius_km,
+async def health():
+    """Health check endpoint for monitoring"""
+    return success_response(
+        data={"status": "healthy"},
+        message="Service is healthy"
     )
 
 
-@app.post("/reports")
-def create_report(payload: ReportCreateRequest) -> dict[str, Any]:
-    report_id = insert_report(dump_model(payload))
-    return {"report_id": report_id, "status": "saved"}
+@app.get("/info")
+async def info():
+    """API information endpoint"""
+    return success_response(
+        data={
+            "name": "Signal PH API",
+            "version": "1.0.0",
+            "environment": settings.app_env,
+            "debug": settings.debug
+        },
+        message="API Information"
+    )
 
 
-@app.get("/reports/recent")
-def recent_reports(limit: int = 20) -> list[dict[str, Any]]:
-    return get_recent_reports(limit=limit)
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    """Handle 404 Not Found errors"""
+    return JSONResponse(
+        status_code=404,
+        content=error_response(
+            message=f"Endpoint {request.url.path} not found",
+            status_code=404
+        )
+    )
 
 
-@app.post("/admin/anomalies")
-def create_anomaly(payload: dict[str, Any]) -> dict[str, Any]:
-    if "latitude" not in payload or "longitude" not in payload:
-        raise HTTPException(status_code=400, detail="latitude and longitude are required")
+@app.exception_handler(500)
+async def internal_error_handler(request: Request, exc):
+    """Handle 500 Internal Server errors"""
+    return JSONResponse(
+        status_code=500,
+        content=error_response(
+            message="Internal server error",
+            status_code=500
+        )
+    )
 
-    anomaly_id = insert_anomaly_log(payload)
-    return {"anomaly_id": anomaly_id, "status": "saved"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app,
+        host=settings.host,
+        port=settings.port,
+        log_level=settings.log_level.lower()
+    )
 
 
-@app.post("/agent/question")
-def agent_question(payload: AgentQuestionRequest) -> dict[str, Any]:
-    # web chatbot endpoint - routes questions through agent to appropriate analysis
-    agent = QuestionRouterAgent()
-    return agent.answer_question(
-        question=payload.question,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
-        radius_km=payload.radius_km
+# Import routes
+# from routes import api
+# app.include_router(api.router, prefix="/api/v1")
+
+
+@app.get("/")
+async def root():
+    """Root endpoint - health check"""
+    return success_response(
+        data={"status": "running", "environment": settings.app_env},
+        message="Signal PH API is running"
+    )
+
+
+@app.get("/health")
+async def health():
+    """Health check endpoint for monitoring"""
+    return success_response(
+        data={"status": "healthy"},
+        message="Service is healthy"
+    )
+
+
+@app.get("/info")
+async def info():
+    """API information endpoint"""
+    return success_response(
+        data={
+            "name": "Signal PH API",
+            "version": "1.0.0",
+            "environment": settings.app_env,
+            "debug": settings.debug
+        },
+        message="API Information"
+    )
+
+
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    """Handle 404 Not Found errors"""
+    return JSONResponse(
+        status_code=404,
+        content=error_response(
+            message=f"Endpoint {request.url.path} not found",
+            status_code=404
+        )
+    )
+
+
+@app.exception_handler(500)
+async def internal_error_handler(request: Request, exc):
+    """Handle 500 Internal Server errors"""
+    logger.error(f"Internal server error: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content=error_response(
+            message="Internal server error",
+            status_code=500
+        )
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app,
+        host=settings.host,
+        port=settings.port,
+        log_level=settings.log_level.lower()
     )
