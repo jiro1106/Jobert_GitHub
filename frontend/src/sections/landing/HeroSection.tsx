@@ -105,7 +105,7 @@ export default function HeroSection() {
             Know your signal,
             <br />
             <em className="not-italic text-[var(--brand)] relative">
-              before you travel.
+              before you travel
               <span className="absolute left-0 right-0 -bottom-0.5 h-0.5 bg-[var(--brand)] opacity-[0.18] rounded-sm" />
             </em>
           </motion.h1>
@@ -113,7 +113,7 @@ export default function HeroSection() {
           {/* Lead */}
           <motion.p
             variants={item}
-            className="text-[15px] text-[var(--ink-3)] max-w-[480px] mb-[22px] md:!text-base md:!mb-7"
+            className="pt-2 text-[15px] text-[var(--ink-3)] max-w-[480px] mb-[22px] md:!text-base md:!mb-7"
           >
             SignalPH forecasts mobile network reliability across every barangay,
             road, and route in the Philippines — so you can pick the right SIM
