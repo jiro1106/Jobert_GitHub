@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/full_logo.png";
 
 const NAV_LINKS = [
@@ -11,7 +11,9 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState("coverage-map");
+  const [activeSection, setActiveSection] = useState("");
+  const isScrollingRef = useRef(false);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const sectionIds = NAV_LINKS.map((l) => l.sectionId);
@@ -21,6 +23,7 @@ export default function Navbar() {
 
     const observer = new IntersectionObserver(
       (entries) => {
+        if (isScrollingRef.current) return;
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
@@ -39,13 +42,29 @@ export default function Navbar() {
     return () => observer.disconnect();
   }, []);
 
+  function scrollToTop() {
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    isScrollingRef.current = true;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setIsOpen(false);
+    setActiveSection("");
+    scrollTimerRef.current = setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 1000);
+  }
+
   function scrollTo(sectionId: string) {
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    isScrollingRef.current = true;
     document.getElementById(sectionId)?.scrollIntoView({
       behavior: "smooth",
       block: "start",
     });
     setIsOpen(false);
     setActiveSection(sectionId);
+    scrollTimerRef.current = setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 1000);
   }
 
   return (
@@ -68,11 +87,20 @@ export default function Navbar() {
         className="md:!h-[80px] md:!px-7"
       >
         {/* Logo */}
-        <a href="#" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <a
+          href="#"
+          onClick={(e) => { e.preventDefault(); scrollToTop(); }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            width: "fit-content",
+            cursor: "pointer",
+          }}
+        >
           <img
             src={logo}
             alt="SignalPH Logo"
-            style={{ height: 44, width: "auto" }}
+            style={{ height: 80, width: "auto" }}
           />
         </a>
 
@@ -106,19 +134,22 @@ export default function Navbar() {
                   zIndex: 0,
                 }}
               >
-                {isActive && (
-                  <motion.span
-                    layoutId="nav-pill"
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      borderRadius: 6,
-                      background: "var(--line-soft)",
-                      zIndex: -1,
-                    }}
-                    transition={{ type: "spring", stiffness: 400, damping: 35 }}
-                  />
-                )}
+                <AnimatePresence initial={false}>
+                  {isActive && (
+                    <motion.span
+                      layoutId="nav-pill"
+                      exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        borderRadius: 6,
+                        background: "var(--line-soft)",
+                        zIndex: -1,
+                      }}
+                      transition={{ type: "spring", stiffness: 400, damping: 35 }}
+                    />
+                  )}
+                </AnimatePresence>
                 <span style={{ position: "relative", zIndex: 1 }}>{label}</span>
               </a>
             );
