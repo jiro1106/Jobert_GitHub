@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import logo from "../assets/full_logo.png";
 
 const NAV_LINKS = [
@@ -95,17 +96,30 @@ export default function Navbar() {
                 href="#"
                 onClick={(e) => { e.preventDefault(); scrollTo(sectionId); }}
                 style={{
+                  position: "relative",
                   fontSize: 13,
                   color: isActive ? "var(--ink)" : "var(--ink-3)",
                   padding: "6px 12px",
                   borderRadius: 6,
                   fontWeight: 500,
-                  background: isActive ? "var(--line-soft)" : "transparent",
                   cursor: "pointer",
-                  position: "relative",
+                  zIndex: 0,
                 }}
               >
-                {label}
+                {isActive && (
+                  <motion.span
+                    layoutId="nav-pill"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      borderRadius: 6,
+                      background: "var(--line-soft)",
+                      zIndex: -1,
+                    }}
+                    transition={{ type: "spring", stiffness: 400, damping: 35 }}
+                  />
+                )}
+                <span style={{ position: "relative", zIndex: 1 }}>{label}</span>
               </a>
             );
           })}
