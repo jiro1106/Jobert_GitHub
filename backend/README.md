@@ -13,7 +13,7 @@ backend/
 ├── middleware/          # Request/response middleware
 ├── models/              # Pydantic data models/schemas
 ├── routes/              # API endpoint routes
-├── services/            # Service layer (Firebase, external APIs)
+├── services/            # Service layer (external APIs)
 ├── utils/               # Helper utilities
 ├── towers_csv/          # OpenCellID data (not in git)
 ├── venv/                # Python virtual environment
@@ -35,7 +35,9 @@ backend/
 
 ```powershell
 cd backend
+
 python -m venv venv
+
 .\venv\Scripts\Activate.ps1
 ```
 
@@ -53,9 +55,7 @@ cp env.example .env
 ```
 
 Then edit `.env` and add your actual credentials:
-- **Firebase**: Project ID, API keys, storage bucket
 - **Google Maps**: API key
-- **OpenWeather**: API key (optional)
 - **OpenCellID**: API key
 - **Supabase**: URL and secret key (for cell tower data)
 
@@ -118,9 +118,8 @@ This will import ~37,864 cell tower records from `towers_csv/515.csv` into Supab
 |-------|------------|
 | Framework | FastAPI 0.136.1 |
 | Server | Uvicorn 0.46.0 |
-| Database | Firebase Firestore + Supabase PostgreSQL |
-| Auth | Firebase Authentication |
-| Storage | Firebase Storage |
+| Database | Supabase PostgreSQL |
+| Auth | TBD (JWT-based) |
 | AI/ML | LangChain 1.3.0 + LangGraph 1.2.0 |
 | Maps | Google Maps Platform |
 | APIs | Axios (via Python requests) |
@@ -129,7 +128,6 @@ This will import ~37,864 cell tower records from `towers_csv/515.csv` into Supab
 
 - **fastapi** - Web framework
 - **uvicorn** - ASGI server
-- **firebase-admin** - Firebase SDK
 - **langchain** - AI framework
 - **langgraph** - Agent orchestration
 - **pydantic** - Data validation
@@ -190,20 +188,17 @@ DEBUG=True
 HOST=0.0.0.0
 PORT=8000
 
-# Firebase
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_API_KEY=your_api_key
-FIREBASE_AUTH_DOMAIN=your_auth_domain
-FIREBASE_STORAGE_BUCKET=your_bucket
-FIREBASE_SERVICE_ACCOUNT_JSON=./firebase-key.json
-
-# Supabase (Cell Tower Data)
+# Supabase (Cell Tower Data & Database)
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your_secret_key
+SUPABASE_HOST=postgres.your-project.pooler.supabase.com
+SUPABASE_PORT=5432
+SUPABASE_DATABASE=postgres
+SUPABASE_USER=postgres
+SUPABASE_PASSWORD=your_password
 
 # External APIs
 GOOGLE_MAPS_API_KEY=your_maps_key
-OPENWEATHER_API_KEY=your_weather_key
 OPENCELLID_API_KEY=your_opencellid_key
 ```
 
@@ -225,7 +220,7 @@ The app will run on Render's free tier with these specs:
 1. ✅ Backend framework ready
 2. ✅ Cell tower data seeded
 3. ⏳ Implement API routes for signal data
-4. ⏳ Setup Firebase integration
+4. ⏳ Setup authentication (JWT-based)
 5. ⏳ Create LangChain agents for AI processing
 6. ⏳ Add authentication middleware
 7. ⏳ Deploy to Render
@@ -233,7 +228,6 @@ The app will run on Render's free tier with these specs:
 ## Resources
 
 - [FastAPI Docs](https://fastapi.tiangolo.com/)
-- [Firebase Admin SDK](https://firebase.google.com/docs/admin/setup)
 - [LangChain Docs](https://python.langchain.com/)
 - [Supabase Docs](https://supabase.com/docs)
 - [Google Maps API](https://developers.google.com/maps)
