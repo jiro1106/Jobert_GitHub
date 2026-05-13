@@ -55,6 +55,100 @@ class SignalAnalysisResponse(BaseModel):
     recommendations: List[str]
 
 
+# ============= Route Analysis Request Schemas =============
+class RouteCoordinate(BaseModel):
+    latitude: float
+    longitude: float
+    name: Optional[str] = None
+
+
+class RouteAnalysisRequest(BaseModel):
+    origin: RouteCoordinate
+    destination: RouteCoordinate
+    route_points: Optional[List[RouteCoordinate]] = None
+    radius_km: Optional[float] = 5.0
+
+
+# ============= Route Forecast Schemas =============
+class RouteEndpoint(BaseModel):
+    label: str
+    lat: float
+    lng: float
+
+
+class TripSummary(BaseModel):
+    distanceKm: float
+    drivingTimeMin: int
+    strongSignalPct: float
+    deadZoneCount: int
+
+
+class SimRecommendation(BaseModel):
+    provider: str  # "globe" | "smart" | "dito"
+    name: str
+    reason: str
+    score: float
+
+
+class SignalGap(BaseModel):
+    id: str
+    km: float
+    level: str  # "dead" | "patchy"
+    name: str
+    description: str
+
+
+class ProviderScore(BaseModel):
+    provider: str  # "globe" | "smart" | "dito"
+    name: str
+    fullName: str
+    score: float
+    delta: float
+    network: str  # "5G" | "4G LTE" | "3G"
+    avgSpeedMbps: float
+    strongSignalPct: float
+    confidencePct: float
+    sparklineData: List[float]
+
+
+class RouteForecast(BaseModel):
+    origin: RouteEndpoint
+    destination: RouteEndpoint
+    summary: TripSummary
+    recommendation: SimRecommendation
+    gaps: List[SignalGap]
+    providers: List[ProviderScore]
+
+
+# ============= Stats Schemas =============
+class StatCell(BaseModel):
+    value: str
+    label: str
+    sublabel: str
+
+
+class StatsResponse(BaseModel):
+    stats: List[StatCell]
+
+
+# ============= Chat Schemas =============
+class ChatMessage(BaseModel):
+    id: str
+    role: str  # "bot" | "user"
+    text: str
+    citation: Optional[str] = None
+
+
+class ChatRequest(BaseModel):
+    message: str
+    context: Optional[dict] = None
+
+
+class ChatResponse(BaseModel):
+    message: ChatMessage
+    conversation_id: str
+
+
 # ============= API Response Schemas =============
 class APIResponse(BaseModel):
     success: bool

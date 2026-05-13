@@ -1,12 +1,41 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { MOCK_ROUTE_FORECAST } from "../../types/coverage";
-import type { ProviderScore } from "../../types/coverage";
+import { MOCK_ROUTE_FORECAST, type ProviderScore } from "../../types/coverage";
+import { getProviderScores } from "../../lib/api";
 
 type Scope = "route" | "dest" | "origin";
 
 export default function ProviderScoreboardSection() {
   const [activeScope, setActiveScope] = useState<Scope>("route");
+  const [providers, setProviders] = useState(MOCK_ROUTE_FORECAST.providers);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchScores = async () => {
+      try {
+        setLoading(true);
+        // Use mock coordinates for now - would be passed from MapSection in production
+        const response = await getProviderScores(
+          14.5995, 120.9842, // Origin: Manila
+          16.6159, 120.3166, // Destination: La Union
+          activeScope
+        );
+        if (response && response.providers && response.providers.length > 0) {
+          setProviders(response.providers);
+          setError(null);
+        }
+      } catch (err) {
+        console.error('Error fetching provider scores:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch scores');
+        // Keep mock data as fallback
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchScores();
+  }, [activeScope]);
 
   const scopes: { id: Scope; label: string }[] = [
     { id: "route", label: "This route" },
@@ -14,11 +43,25 @@ export default function ProviderScoreboardSection() {
     { id: "origin", label: "Origin only" },
   ];
 
-  const providers = MOCK_ROUTE_FORECAST.providers;
   const bestScore = Math.max(...providers.map((p) => p.score));
 
   return (
     <section id="providers" className="block" data-section="provider-scoreboard">
+      {error && (
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "#FEE2E2",
+            border: "1px solid #FCA5A5",
+            color: "#DC2626",
+            fontSize: 13,
+            marginBottom: "16px",
+            borderRadius: 8,
+          }}
+        >
+          {error}
+        </div>
+      )}
       <div className="block-head">
         <div>
           <div className="eyebrow">02 · Provider scorecard</div>

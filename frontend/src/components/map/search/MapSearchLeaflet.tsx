@@ -24,6 +24,15 @@ export type RouteMetricsFromMap = {
 type OriginMode = 'current' | 'typed' | 'pinned';
 type DestinationMode = 'typed' | 'pinned';
 
+type RouteCoordinates = {
+  originLat: number;
+  originLng: number;
+  originName: string;
+  destLat: number;
+  destLng: number;
+  destName: string;
+};
+
 type Props = {
   map: LeafletMap | null;
   origin?: LatLng | null;
@@ -31,6 +40,7 @@ type Props = {
   initialDestinationText?: string;
   isFullscreen?: boolean;
   onRouteMetrics?: (metrics: RouteMetricsFromMap | null) => void;
+  onRouteCoordinates?: (coords: RouteCoordinates | null) => void;
 };
 
 const MapSearchLeaflet: React.FC<Props> = ({
@@ -40,6 +50,7 @@ const MapSearchLeaflet: React.FC<Props> = ({
   initialDestinationText,
   isFullscreen = false,
   onRouteMetrics,
+  onRouteCoordinates,
 }) => {
     const routingRef = useRef<any>(null);
     const destinationMarkerRef = useRef<L.Marker | null>(null);
@@ -48,6 +59,7 @@ const MapSearchLeaflet: React.FC<Props> = ({
     const originDebounceRef = useRef<number | null>(null);
     const originAbortRef = useRef<AbortController | null>(null);
     const onRouteMetricsRef = useRef(onRouteMetrics);
+    const onRouteCoordinatesRef = useRef(onRouteCoordinates);
 
     const [query, setQuery] = useState('');
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -64,6 +76,7 @@ const MapSearchLeaflet: React.FC<Props> = ({
     const toParam = searchParams.get('to')?.trim() ?? '';
 
   onRouteMetricsRef.current = onRouteMetrics;
+  onRouteCoordinatesRef.current = onRouteCoordinates;
 
   const geocodeLocation = async (value: string, signal?: AbortSignal) => {
     const params = new URLSearchParams({
@@ -241,7 +254,17 @@ const MapSearchLeaflet: React.FC<Props> = ({
       L.latLng(effectiveOrigin.lat, effectiveOrigin.lng),
       L.latLng(destination.lat, destination.lng),
     ]);
-  }, [destination, effectiveOrigin]);
+
+    // Emit route coordinates for API call
+    onRouteCoordinatesRef.current?.({
+      originLat: effectiveOrigin.lat,
+      originLng: effectiveOrigin.lng,
+      originName: originText || 'Origin',
+      destLat: destination.lat,
+      destLng: destination.lng,
+      destName: destinationText || 'Destination',
+    });
+  }, [destination, effectiveOrigin, originText, destinationText]);
 
   useEffect(() => {
     if (!map) return;

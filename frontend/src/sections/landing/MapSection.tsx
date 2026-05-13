@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { MOCK_ROUTE_FORECAST } from "../../types/coverage";
+import { MOCK_ROUTE_FORECAST, type RouteForecast } from "../../types/coverage";
 import MapComponent, {
   type RouteMetricsFromMap,
 } from "../../components/map/MapComponent";
 import type { TravelMode } from "../../types/coverage";
+import { getRouteForecast } from "../../lib/api";
 import { ArrowRight } from "lucide-react";
 
 /* ============================================================
@@ -12,7 +13,9 @@ import { ArrowRight } from "lucide-react";
    Contains: MapCard + RouteSidebar + ForecastChart
    ============================================================ */
 export default function MapSection() {
-  const forecast = MOCK_ROUTE_FORECAST;
+  const [forecast, setForecast] = useState<RouteForecast>(MOCK_ROUTE_FORECAST);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const fromParam = searchParams.get("from") ?? "";
   const toParam = searchParams.get("to") ?? "";
@@ -31,6 +34,33 @@ export default function MapSection() {
     mapRouteMetrics?.distanceKm ?? forecast.summary.distanceKm;
   const summaryDrivingTimeMin =
     mapRouteMetrics?.durationMin ?? forecast.summary.drivingTimeMin;
+
+  // Handle route coordinates from map
+  const handleRouteCoordinates = async (coords: {originLat: number; originLng: number; originName: string; destLat: number; destLng: number; destName: string} | null) => {
+    if (!coords) {
+      setError(null);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getRouteForecast(
+        coords.originLat,
+        coords.originLng,
+        coords.originName,
+        coords.destLat,
+        coords.destLng,
+        coords.destName
+      );
+      setForecast(result);
+    } catch (err) {
+      console.error('Error fetching route forecast:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch route forecast');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <section id="coverage-map" className="block" data-section="route-forecast">
@@ -77,15 +107,18 @@ export default function MapSection() {
           initialOriginText={fromParam || undefined}
           initialDestinationText={toParam || undefined}
           onRouteMetrics={setMapRouteMetrics}
+          onRouteCoordinates={handleRouteCoordinates}
         />
         <RouteSidebar
           forecast={forecast}
           summaryDistanceKm={summaryDistanceKm}
           summaryDrivingTimeMin={summaryDrivingTimeMin}
+          loading={loading}
+          error={error}
         />
       </div>
 
-      <ForecastChart />
+      <ForecastChart forecast={forecast} />
     </section>
   );
 }
@@ -118,10 +151,12 @@ function MapCard({
   initialOriginText,
   initialDestinationText,
   onRouteMetrics,
+  onRouteCoordinates,
 }: {
   initialOriginText?: string;
   initialDestinationText?: string;
   onRouteMetrics?: (metrics: RouteMetricsFromMap | null) => void;
+  onRouteCoordinates?: (coords: {originLat: number; originLng: number; originName: string; destLat: number; destLng: number; destName: string} | null) => void;
 }) {
   return (
     <div
@@ -139,6 +174,7 @@ function MapCard({
           initialOriginText={initialOriginText}
           initialDestinationText={initialDestinationText}
           onRouteMetrics={onRouteMetrics}
+          onRouteCoordinates={onRouteCoordinates}
         />
       </div>
     </div>
@@ -150,15 +186,33 @@ function RouteSidebar({
   forecast,
   summaryDistanceKm,
   summaryDrivingTimeMin,
+  loading,
+  error,
 }: {
-  forecast: typeof MOCK_ROUTE_FORECAST;
+  forecast: RouteForecast;
   summaryDistanceKm: number;
   summaryDrivingTimeMin: number;
+  loading?: boolean;
+  error?: string | null;
 }) {
   const { summary, recommendation, gaps } = forecast;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {error && (
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "#FEE2E2",
+            border: "1px solid #FCA5A5",
+            borderRadius: 8,
+            fontSize: 13,
+            color: "#DC2626",
+          }}
+        >
+          {error}
+        </div>
+      )}
       {/* Trip summary */}
       <div className="panel">
         <div style={{ padding: "18px 18px 8px" }}>
@@ -352,7 +406,7 @@ function RouteSidebar({
 }
 
 /* ---- Forecast Chart ---- */
-function ForecastChart() {
+function ForecastChart({ forecast }: { forecast: RouteForecast }) {
   const [activeProviders, setActiveProviders] = useState(new Set(["globe"]));
 
   function toggleProvider(p: string) {

@@ -30,6 +30,7 @@ interface Props {
   initialOriginText?: string;
   initialDestinationText?: string;
   onRouteMetrics?: (metrics: RouteMetricsFromMap | null) => void;
+  onRouteCoordinates?: (coords: {originLat: number; originLng: number; originName: string; destLat: number; destLng: number; destName: string} | null) => void;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -156,6 +157,7 @@ const MapComponent: React.FC<Props> = ({
   initialOriginText,
   initialDestinationText,
   onRouteMetrics,
+  onRouteCoordinates,
 }) => {
   const mapRef = useRef<LeafletMap | null>(null);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
@@ -293,6 +295,7 @@ const MapComponent: React.FC<Props> = ({
             initialDestinationText={initialDestinationText}
             isFullscreen={isFullscreen}
             onRouteMetrics={onRouteMetrics}
+            onRouteCoordinates={onRouteCoordinates}
           />
 
           <MapSizeObserver map={mapInstance} isFullscreen={isFullscreen} />

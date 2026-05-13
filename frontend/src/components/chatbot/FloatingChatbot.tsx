@@ -11,6 +11,7 @@ import {
 import SuggestionChips from "./SuggestionChips";
 import ChatbotInput from "./ChatbotInput";
 import ChatbotConversation from "./ChatbotConversation";
+import { submitChatMessage } from "../../lib/api";
 
 import { Message } from "./types";
 
@@ -39,6 +40,9 @@ const FloatingChatbot: React.FC = () => {
     },
   ]);
 
+  const [conversationId, setConversationId] = useState<string | undefined>();
+  const [loading, setLoading] = useState(false);
+
   const suggestions = [
     "Which SIM for Baguio trip?",
     "Signal near EDSA?",
@@ -65,44 +69,40 @@ const FloatingChatbot: React.FC = () => {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setLoading(true);
 
-    // =====================================================
-    // AI MODEL PLACEHOLDER
-    // =====================================================
+    try {
+      const response = await submitChatMessage(input, conversationId);
+      
+      // Update conversation ID for future messages
+      if (response.conversation_id && !conversationId) {
+        setConversationId(response.conversation_id);
+      }
 
-    // Example:
-    //
-    // import { askSignalAgent } from "@/ai/agent";
-    //
-    // const response = await askSignalAgent(input);
-    //
-    // setMessages(prev => [
-    //   ...prev,
-    //   {
-    //     id: Date.now(),
-    //     sender: "assistant",
-    //     text: response.answer,
-    //     agent: response.agent
-    //   }
-    // ]);
-
-    // =====================================================
-
-    setTimeout(() => {
-      const fakeResponse: Message = {
+      const assistantMessage: Message = {
         id: Date.now() + 1,
         sender: "assistant",
-        text: "Signal strength is generally stable in that area with moderate congestion during peak hours.",
-        agent: "Deadzone Prediction Agent",
+        text: response.message.text,
+        agent: "Route Analysis Agent",
       };
 
-      setMessages((prev) => [
-        ...prev,
-        fakeResponse,
-      ]);
-    }, 800);
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      
+      // Fallback response
+      const errorMessage: Message = {
+        id: Date.now() + 1,
+        sender: "assistant",
+        text: "I'm having trouble connecting to the service. Please try again later.",
+        agent: "Route Analysis Agent",
+      };
 
-    setInput("");
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

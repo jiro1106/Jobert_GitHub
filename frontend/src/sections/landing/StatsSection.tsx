@@ -1,11 +1,53 @@
 import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { getPlatformStats, type StatsResponse } from '../../lib/api';
 import { MOCK_STATS } from '../../types/coverage';
 
 export default function StatsSection() {
+  const [stats, setStats] = useState(MOCK_STATS);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        const response = await getPlatformStats();
+        if (response && response.stats && response.stats.length > 0) {
+          setStats(response.stats);
+          setError(null);
+        }
+      } catch (err) {
+        console.error('Error fetching stats:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch stats');
+        // Keep mock data as fallback
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
   return (
     <div className="border-t border-[var(--line)] bg-white">
+      {error && (
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "#FEE2E2",
+            border: "1px solid #FCA5A5",
+            color: "#DC2626",
+            fontSize: 13,
+            margin: "12px 16px",
+            borderRadius: 8,
+          }}
+        >
+          {error}
+        </div>
+      )}
       <div className="max-w-[1180px] mx-auto px-4 grid grid-cols-2 md:!px-7 md:!grid-cols-4">
-        {MOCK_STATS.map((stat, i) => (
+        {stats.map((stat, i) => (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 10 }}
