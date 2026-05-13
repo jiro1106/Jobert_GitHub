@@ -1,24 +1,52 @@
-"""Signal PH Backend API - Main Application"""
-import sys
-from pathlib import Path
-from contextlib import asynccontextmanager
+"""Signal PH Backend API - Main Application."""
 
-# Add parent directory to sys.path to allow imports from backend package
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from __future__ import annotations
 
-from fastapi import FastAPI, Request
+from contextlib import asynccontextmanager, nullcontext
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from backend.config.settings import get_settings
-from backend.middleware.auth import error_handler_middleware
-from backend.routes.api import router as api_router
-from backend.services.route_service import analyze_point, analyze_route
-from backend.utils.helpers import error_response, success_response
+from .config.settings import get_settings
+from .middleware.auth import error_handler_middleware
+from .services.llm_client import call_lfm_json
+from .services.route_service import analyze_point, analyze_route
+from .utils.helpers import error_response, success_response
 
 settings = get_settings()
 
+
+# ---------------------------------------------------------------------
+# Optional API router
+# ---------------------------------------------------------------------
+
+try:
+    from .routes.api import router as api_router
+except Exception as error:
+    print(f"Note: routes.api not loaded: {error}")
+    api_router = None
+
+
+# ---------------------------------------------------------------------
+# Optional OpenTelemetry tracing
+# ---------------------------------------------------------------------
+
+class _NoopSpan:
+    def set_attribute(self, *_args, **_kwargs):
+        return None
+
+
+class _NoopTracer:
+    def start_as_current_span(self, *_args, **_kwargs):
+        return nullcontext(_NoopSpan())
+
+
+# ---------------------------------------------------------------------
+# Lifespan
+# ---------------------------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,25 +61,50 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-allowed_origins = (
-    ["*"] if settings.debug else ["http://localhost:5173", "http://localhost:3000"]
-)
+
+try:
+    from .observability import setup_tracing
+
+    tracer = setup_tracing(app)
+except Exception as error:
+    print(f"Note: OpenTelemetry tracing not enabled: {error}")
+    tracer = _NoopTracer()
+
+
+# ---------------------------------------------------------------------
+# Middleware
+# ---------------------------------------------------------------------
+
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:3000",
+]
+
+if settings.debug:
+    allowed_origins.append("*")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_credentials=False if "*" in allowed_origins else True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.middleware("http")(error_handler_middleware)
 
-# Include API routes
-app.include_router(api_router, prefix="/api", tags=["signals"])
+if api_router is not None:
+    app.include_router(api_router, prefix="/api", tags=["signals"])
 
 
-# ============= Request Models =============
+# ---------------------------------------------------------------------
+# Request Models
+# ---------------------------------------------------------------------
+
 class PointAnalysisRequest(BaseModel):
     latitude: float
     longitude: float
@@ -71,40 +124,22 @@ class RouteAnalysisRequest(BaseModel):
     radius_km: float = Field(default=5.0, ge=0.1, le=50.0)
 
 
-# ============= Advanced Analysis Endpoints =============
-@app.post("/analyze/point")
-async def analyze_point_endpoint(payload: PointAnalysisRequest):
-    """Analyze signal quality at a specific point"""
-    result = analyze_point(
-        latitude=payload.latitude,
-        longitude=payload.longitude,
-        radius_km=payload.radius_km,
-    )
-    return success_response(data=result, message="Point analysis complete")
+class MCPToolCallRequest(BaseModel):
+    name: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
 
 
-@app.post("/analyze/route")
-async def analyze_route_endpoint(payload: RouteAnalysisRequest):
-    """Analyze signal quality along a route"""
-    route_points = (
-        [point.model_dump() for point in payload.route_points]
-        if payload.route_points
-        else None
-    )
-    result = analyze_route(
-        origin=payload.origin.model_dump(),
-        destination=payload.destination.model_dump(),
-        route_points=route_points,
-        radius_km=payload.radius_km,
-    )
-    return success_response(data=result, message="Route analysis complete")
+# ---------------------------------------------------------------------
+# Basic API Routes
+# ---------------------------------------------------------------------
 
-
-# ============= Health Check & Info Endpoints =============
 @app.get("/")
 async def root():
     return success_response(
-        data={"status": "running", "environment": settings.app_env},
+        data={
+            "status": "running",
+            "environment": settings.app_env,
+        },
         message="Signal PH API is running",
     )
 
@@ -130,7 +165,194 @@ async def info():
     )
 
 
-# ============= Exception Handlers =============
+# ---------------------------------------------------------------------
+# Analysis Routes
+# ---------------------------------------------------------------------
+
+@app.post("/analyze/point")
+async def analyze_point_endpoint(payload: PointAnalysisRequest):
+    result = analyze_point(
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        radius_km=payload.radius_km,
+    )
+
+    return success_response(
+        data=result,
+        message="Point analysis complete",
+    )
+
+
+@app.post("/analyze/route")
+async def analyze_route_endpoint(payload: RouteAnalysisRequest):
+    route_points = (
+        [point.model_dump() for point in payload.route_points]
+        if payload.route_points
+        else None
+    )
+
+    result = analyze_route(
+        origin=payload.origin.model_dump(),
+        destination=payload.destination.model_dump(),
+        route_points=route_points,
+        radius_km=payload.radius_km,
+    )
+
+    return success_response(
+        data=result,
+        message="Route analysis complete",
+    )
+
+
+# ---------------------------------------------------------------------
+# Report Helper
+# ---------------------------------------------------------------------
+
+def _submit_signal_report(args: dict[str, Any]) -> Any:
+    """
+    Submit a signal report using whatever report insert function exists.
+
+    This avoids breaking the app while the repository function name changes.
+    """
+
+    from .db import report_repository
+
+    possible_function_names = [
+        "insert_crowdsourced_report",
+        "insert_report",
+        "create_report",
+        "add_report",
+    ]
+
+    for function_name in possible_function_names:
+        function = getattr(report_repository, function_name, None)
+
+        if function is None:
+            continue
+
+        try:
+            return function(args)
+        except TypeError:
+            return function(**args)
+
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "submit_signal_report is listed as an MCP tool, but no compatible "
+            "insert function was found in db.report_repository."
+        ),
+    )
+
+
+# ---------------------------------------------------------------------
+# MCP HTTP Bridge
+# ---------------------------------------------------------------------
+
+@app.post("/mcp/tools/call")
+async def call_mcp_tool(payload: MCPToolCallRequest):
+    tool_name = payload.name
+    args = payload.arguments
+
+    try:
+        if tool_name == "analyze_point":
+            result = analyze_point(
+                latitude=args["latitude"],
+                longitude=args["longitude"],
+                radius_km=args.get("radius_km", 5.0),
+            )
+
+            return {
+                "tool": tool_name,
+                "status": "success",
+                "data": result,
+            }
+
+        if tool_name == "analyze_route":
+            result = analyze_route(
+                origin=args["origin"],
+                destination=args["destination"],
+                route_points=args.get("route_points"),
+                radius_km=args.get("radius_km", 5.0),
+            )
+
+            return {
+                "tool": tool_name,
+                "status": "success",
+                "data": result,
+            }
+
+        if tool_name == "submit_signal_report":
+            inserted = _submit_signal_report(args)
+
+            return {
+                "tool": tool_name,
+                "status": "success",
+                "data": {
+                    "message": "Signal report submitted.",
+                    "inserted": inserted,
+                },
+            }
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown MCP tool: {tool_name}",
+        )
+
+    except KeyError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required argument: {error}",
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=400,
+            detail=f"MCP tool call failed: {str(error)}",
+        )
+
+
+# ---------------------------------------------------------------------
+# LFM Test Endpoint
+# ---------------------------------------------------------------------
+
+@app.post("/agent/llm-test")
+async def llm_test(payload: dict[str, Any]):
+    with tracer.start_as_current_span("agent.llm_test") as span:
+        prompt = payload.get("prompt", "Return {\"status\":\"ok\"}")
+
+        span.set_attribute("agent.prompt_length", len(prompt))
+
+        result = call_lfm_json(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are the SignalPH router. Return valid JSON only. "
+                        "Use keys: intent, answer, tool_calls."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ]
+        )
+
+        span.set_attribute("agent.intent", result.get("intent", "unknown"))
+
+        return {
+            "status": "success",
+            "data": result,
+        }
+
+
+# ---------------------------------------------------------------------
+# Error Handlers
+# ---------------------------------------------------------------------
+
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
     return JSONResponse(
@@ -152,6 +374,10 @@ async def internal_error_handler(request: Request, exc):
         ),
     )
 
+
+# ---------------------------------------------------------------------
+# Local Run
+# ---------------------------------------------------------------------
 
 if __name__ == "__main__":
     import uvicorn

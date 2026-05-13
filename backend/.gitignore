@@ -6,8 +6,5 @@ venv/git rm --cached .env
 .vscode/
 .idea/
 *.log
-<<<<<<< HEAD
-
-=======
 towers_csv/
->>>>>>> origin/backend_develop
+*.gguf

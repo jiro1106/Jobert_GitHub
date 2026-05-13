@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Iterable, List
+from typing import Any, Iterable
 
 from .connection import execute, execute_many, fetch_all, fetch_one
 
