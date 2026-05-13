@@ -1,36 +1,34 @@
 """Signal PH Backend API - Main Application"""
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
+from pydantic import BaseModel, Field
 
-from config.settings import get_settings
-from middleware.auth import error_handler_middleware
-from utils.helpers import success_response, error_response
+from .config.settings import get_settings
+from .middleware.auth import error_handler_middleware
+from .services.route_service import analyze_point, analyze_route
+from .utils.helpers import error_response, success_response
 
-# Load settings
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan context manager"""
+    """Application lifespan context manager."""
     yield
-    # Shutdown cleanup if needed
 
 
-# Initialize FastAPI app
 app = FastAPI(
     title="Signal PH API",
     description="Backend API for Signal PH - Crowdsourced cellular signal monitoring",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-# Configure CORS
 allowed_origins = (
-    ["*"] if settings.debug 
-    else ["http://localhost:5173", "http://localhost:3000"]  # Update with frontend URLs
+    ["*"] if settings.debug else ["http://localhost:5173", "http://localhost:3000"]
 )
 
 app.add_middleware(
@@ -41,148 +39,107 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add error handling middleware
 app.middleware("http")(error_handler_middleware)
 
 
-# Import routes
-# from routes import api
-# app.include_router(api.router, prefix="/api/v1")
+class PointAnalysisRequest(BaseModel):
+    latitude: float
+    longitude: float
+    radius_km: float = Field(default=5.0, ge=0.1, le=50.0)
+
+
+class RouteCoordinate(BaseModel):
+    latitude: float
+    longitude: float
+    name: str | None = None
+
+
+class RouteAnalysisRequest(BaseModel):
+    origin: RouteCoordinate
+    destination: RouteCoordinate
+    route_points: list[RouteCoordinate] | None = None
+    radius_km: float = Field(default=5.0, ge=0.1, le=50.0)
 
 
 @app.get("/")
 async def root():
-    """Root endpoint - health check"""
     return success_response(
         data={"status": "running", "environment": settings.app_env},
-        message="Signal PH API is running"
+        message="Signal PH API is running",
     )
 
 
 @app.get("/health")
 async def health():
-    """Health check endpoint for monitoring"""
     return success_response(
         data={"status": "healthy"},
-        message="Service is healthy"
+        message="Service is healthy",
     )
 
 
 @app.get("/info")
 async def info():
-    """API information endpoint"""
     return success_response(
         data={
             "name": "Signal PH API",
             "version": "1.0.0",
             "environment": settings.app_env,
-            "debug": settings.debug
+            "debug": settings.debug,
         },
-        message="API Information"
+        message="API Information",
     )
+
+
+@app.post("/analyze/point")
+async def analyze_point_endpoint(payload: PointAnalysisRequest):
+    result = analyze_point(
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        radius_km=payload.radius_km,
+    )
+    return success_response(data=result, message="Point analysis complete")
+
+
+@app.post("/analyze/route")
+async def analyze_route_endpoint(payload: RouteAnalysisRequest):
+    route_points = [point.model_dump() for point in payload.route_points] if payload.route_points else None
+    result = analyze_route(
+        origin=payload.origin.model_dump(),
+        destination=payload.destination.model_dump(),
+        route_points=route_points,
+        radius_km=payload.radius_km,
+    )
+    return success_response(data=result, message="Route analysis complete")
 
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
-    """Handle 404 Not Found errors"""
     return JSONResponse(
         status_code=404,
         content=error_response(
             message=f"Endpoint {request.url.path} not found",
-            status_code=404
-        )
+            status_code=404,
+        ),
     )
 
 
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
-    """Handle 500 Internal Server errors"""
     return JSONResponse(
         status_code=500,
         content=error_response(
             message="Internal server error",
-            status_code=500
-        )
+            status_code=500,
+        ),
     )
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         app,
         host=settings.host,
         port=settings.port,
-        log_level=settings.log_level.lower()
-    )
-
-
-# Import routes
-# from routes import api
-# app.include_router(api.router, prefix="/api/v1")
-
-
-@app.get("/")
-async def root():
-    """Root endpoint - health check"""
-    return success_response(
-        data={"status": "running", "environment": settings.app_env},
-        message="Signal PH API is running"
-    )
-
-
-@app.get("/health")
-async def health():
-    """Health check endpoint for monitoring"""
-    return success_response(
-        data={"status": "healthy"},
-        message="Service is healthy"
-    )
-
-
-@app.get("/info")
-async def info():
-    """API information endpoint"""
-    return success_response(
-        data={
-            "name": "Signal PH API",
-            "version": "1.0.0",
-            "environment": settings.app_env,
-            "debug": settings.debug
-        },
-        message="API Information"
-    )
-
-
-@app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
-    """Handle 404 Not Found errors"""
-    return JSONResponse(
-        status_code=404,
-        content=error_response(
-            message=f"Endpoint {request.url.path} not found",
-            status_code=404
-        )
-    )
-
-
-@app.exception_handler(500)
-async def internal_error_handler(request: Request, exc):
-    """Handle 500 Internal Server errors"""
-    logger.error(f"Internal server error: {str(exc)}")
-    return JSONResponse(
-        status_code=500,
-        content=error_response(
-            message="Internal server error",
-            status_code=500
-        )
-    )
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        app,
-        host=settings.host,
-        port=settings.port,
-        log_level=settings.log_level.lower()
+        log_level=settings.log_level.lower(),
     )

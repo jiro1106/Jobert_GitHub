@@ -1,7 +1,8 @@
 """Authentication and authorization middleware"""
-from fastapi import Request, HTTPException, status
+from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from utils.helpers import error_response
+
+from ..utils.helpers import error_response
 
 
 async def error_handler_middleware(request: Request, call_next):
@@ -17,7 +18,7 @@ async def error_handler_middleware(request: Request, call_next):
                 status_code=exc.status_code
             )
         )
-    except Exception as exc:
+    except Exception:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=error_response(

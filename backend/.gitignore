@@ -1,7 +1,7 @@
 .env
 *.pyc
 __pycache__/
-venv/
+venv/git rm --cached .env
 .DS_Store
 .vscode/
 .idea/

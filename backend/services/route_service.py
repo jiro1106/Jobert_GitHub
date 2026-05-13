@@ -18,7 +18,7 @@ from .scoring_service import calculate_provider_scores
 from .tower_matching_service import (
     build_bbox_around_point,
     build_bbox_around_route,
-    find_closest_towers_by_provider,
+    find_closest_towers,
     haversine_distance_m,
 )
 
@@ -236,7 +236,7 @@ def analyze_point(
         max_longitude,
     )
 
-    closest_towers = find_closest_towers_by_provider(
+    closest_towers = find_closest_towers(
         route_points=route_points,
         candidate_towers=towers,
         max_distance_km=radius_km,
@@ -324,7 +324,7 @@ def analyze_route(
         max_longitude,
     )
 
-    closest_towers = find_closest_towers_by_provider(
+    closest_towers = find_closest_towers(
         route_points=resolved_route_points,
         candidate_towers=towers,
         max_distance_km=radius_km,
