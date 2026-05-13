@@ -7,3 +7,4 @@ firebase-key.json
 .vscode/
 .idea/
 *.log
+towers_csv/
