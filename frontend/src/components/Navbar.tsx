@@ -38,6 +38,15 @@ export default function Navbar() {
     return () => observer.disconnect();
   }, []);
 
+  function scrollTo(sectionId: string) {
+    document.getElementById(sectionId)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    setIsOpen(false);
+    setActiveSection(sectionId);
+  }
+
   return (
     <>
       <nav
@@ -84,6 +93,7 @@ export default function Navbar() {
               <a
                 key={label}
                 href="#"
+                onClick={(e) => { e.preventDefault(); scrollTo(sectionId); }}
                 style={{
                   fontSize: 13,
                   color: isActive ? "var(--ink)" : "var(--ink-3)",
@@ -91,6 +101,8 @@ export default function Navbar() {
                   borderRadius: 6,
                   fontWeight: 500,
                   background: isActive ? "var(--line-soft)" : "transparent",
+                  cursor: "pointer",
+                  position: "relative",
                 }}
               >
                 {label}
@@ -150,7 +162,7 @@ export default function Navbar() {
             <a
               key={label}
               href="#"
-              onClick={() => setIsOpen(false)}
+              onClick={(e) => { e.preventDefault(); scrollTo(sectionId); }}
               style={{
                 display: "block",
                 padding: "14px 4px",
@@ -158,6 +170,7 @@ export default function Navbar() {
                 fontWeight: 600,
                 color: isActive ? "var(--brand)" : "var(--ink)",
                 borderBottom: "1px solid var(--line-soft)",
+                cursor: "pointer",
               }}
             >
               {label}
