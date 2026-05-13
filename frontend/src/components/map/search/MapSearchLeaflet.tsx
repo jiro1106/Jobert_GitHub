@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet-routing-machine';
 import { Search } from 'lucide-react';
 import type { Map as LeafletMap } from 'leaflet';
+import { useSearchParams } from 'react-router-dom';
 
 type LatLng = {
   lat: number;
@@ -33,24 +34,28 @@ const MapSearchLeaflet: React.FC<Props> = ({
   initialDestinationText,
   isFullscreen = false,
 }) => {
-  const routingRef = useRef<any>(null);
-  const destinationMarkerRef = useRef<L.Marker | null>(null);
-  const destinationDebounceRef = useRef<number | null>(null);
-  const destinationAbortRef = useRef<AbortController | null>(null);
-  const originDebounceRef = useRef<number | null>(null);
-  const originAbortRef = useRef<AbortController | null>(null);
-  const initialAppliedRef = useRef(false);
+    const routingRef = useRef<any>(null);
+    const destinationMarkerRef = useRef<L.Marker | null>(null);
+    const destinationDebounceRef = useRef<number | null>(null);
+    const destinationAbortRef = useRef<AbortController | null>(null);
+    const originDebounceRef = useRef<number | null>(null);
+    const originAbortRef = useRef<AbortController | null>(null);
+    const initialAppliedRef = useRef(false);
 
-  const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [originMode, setOriginMode] = useState<OriginMode>('current');
-  const [originLocation, setOriginLocation] = useState<LatLng | null>(null);
-  const [originQuery, setOriginQuery] = useState('');
-  const [originSuggestions, setOriginSuggestions] = useState<Suggestion[]>([]);
-  const [originText, setOriginText] = useState('Current location');
-  const [destinationMode, setDestinationMode] = useState<DestinationMode>('typed');
-  const [destination, setDestination] = useState<LatLng | null>(null);
-  const [destinationText, setDestinationText] = useState('');
+    const [query, setQuery] = useState('');
+    const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+    const [originMode, setOriginMode] = useState<OriginMode>('current');
+    const [originLocation, setOriginLocation] = useState<LatLng | null>(null);
+    const [originQuery, setOriginQuery] = useState('');
+    const [originSuggestions, setOriginSuggestions] = useState<Suggestion[]>([]);
+    const [originText, setOriginText] = useState('Current location');
+    const [destinationMode, setDestinationMode] = useState<DestinationMode>('typed');
+    const [destination, setDestination] = useState<LatLng | null>(null);
+    const [destinationText, setDestinationText] = useState('');
+    const [searchParams] = useSearchParams();
+    const initialFrom = searchParams.get("from");
+    const initialTo = searchParams.get("to");
+
   const geocodeLocation = async (value: string) => {
     const params = new URLSearchParams({
       q: value,
@@ -69,37 +74,7 @@ const MapSearchLeaflet: React.FC<Props> = ({
     };
   };
 
-  useEffect(() => {
-    if (!map || initialAppliedRef.current) return;
-    if (!initialOriginText && !initialDestinationText) return;
-
-    initialAppliedRef.current = true;
-
-    const applyInitial = async () => {
-      if (initialOriginText) {
-        setOriginMode('typed');
-        setOriginText(initialOriginText);
-        const result = await geocodeLocation(initialOriginText);
-        if (result) {
-          setOriginLocation({ lat: result.lat, lng: result.lng });
-          setOriginText(result.label);
-        }
-      }
-
-      if (initialDestinationText) {
-        setDestinationMode('typed');
-        setDestinationText(initialDestinationText);
-        const result = await geocodeLocation(initialDestinationText);
-        if (result) {
-          setDestination({ lat: result.lat, lng: result.lng });
-          setDestinationText(result.label);
-          map.setView([result.lat, result.lng], Math.max(map.getZoom(), 12));
-        }
-      }
-    };
-
-    void applyInitial();
-  }, [map, initialOriginText, initialDestinationText]);
+  
 
   const destinationIcon = useMemo(() => {
     const svg = `
@@ -342,6 +317,43 @@ const MapSearchLeaflet: React.FC<Props> = ({
     };
   }, [originMode, originQuery]);
 
+  useEffect(() => {
+  if (!map) return;
+  if (initialAppliedRef.current) return;
+
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
+
+  if (!from && !to) return;
+
+  initialAppliedRef.current = true;
+
+  const run = async () => {
+    if (from) {
+      setOriginMode("typed");
+      const result = await geocodeLocation(from);
+
+      if (result) {
+        setOriginLocation({ lat: result.lat, lng: result.lng });
+        setOriginText(result.label);
+      }
+    }
+
+    if (to) {
+      setDestinationMode("typed");
+      const result = await geocodeLocation(to);
+
+      if (result) {
+        setDestination({ lat: result.lat, lng: result.lng });
+        setDestinationText(result.label);
+        map.setView([result.lat, result.lng], 12);
+      }
+    }
+  };
+
+  run();
+}, [map, searchParams]);
+
   const applyDestination = (suggestion: Suggestion) => {
     const selected = {
       lat: Number(suggestion.lat),
@@ -376,7 +388,7 @@ const MapSearchLeaflet: React.FC<Props> = ({
   if (!map) return null;
 
   const containerStyle = isFullscreen
-    ? { width: "calc(100% - 96px)", maxWidth: "75vw" }
+    ? { width: "calc(100% - 96px)", maxWidth: "50vw" }
     : { width: "min(70vw, 560px)" };
 
   return (

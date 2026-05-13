@@ -254,7 +254,7 @@ function SearchField({
   return (
     <div className="flex items-center gap-2.5 p-3 rounded-[9px] cursor-text min-h-12 sm:!py-[10px]">
       <span
-        className="w-2 h-2 rounded-full flex-shrink-0"
+        className="w-2 h-2 rounded-full shrink-0"
         style={{ background: dotColor }}
       />
       <div>
@@ -340,7 +340,7 @@ function RouteSearchCard({
       </div>
       <div className="mt-[14px] flex flex-wrap gap-1.5 items-center min-w-xl">
         <span
-          className="text-[10.5px] text-[var(--ink-5)] mr-1"
+          className="text-[10.5px] text-(--ink-5) mr-1"
           style={{ fontFamily: "var(--mono)" }}
         >
           Popular →

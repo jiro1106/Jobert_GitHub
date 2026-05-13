@@ -258,8 +258,8 @@ const MapComponent: React.FC<Props> = ({
     <FullscreenMap>
       {({ isFullscreen, mapContainerStyle, toggleFullscreen }) => (
         <div
-          className={isFullscreen ? 'relative h-full' : 'relative'}
-          style={isFullscreen ? { height: '100%' } : undefined}
+          className={isFullscreen ? 'relative h-screen w-screen' : 'relative'}
+          style={isFullscreen ? { height: '100vh', width: '100vw' } : undefined}
         >
           {/* ── Top-right controls ───────────────────────────────────────────── */}
           <MapControls
@@ -294,9 +294,14 @@ const MapComponent: React.FC<Props> = ({
           <MapContainer
             center={[mapCenter.lat, mapCenter.lng]}
             zoom={mapZoom}
-            style={{ ...mapContainerStyle, minHeight: isFullscreen ? '100%' : undefined }}
+            style={{
+              ...mapContainerStyle,
+              height: '100%',
+              width: '100%',
+              minHeight: '100%',
+            }}
             zoomControl={false}
-            className="z-0"
+            className="z-0 h-full w-full"
           >
             <TileLayer
               url={tileLayer.url}

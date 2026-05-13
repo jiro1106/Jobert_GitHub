@@ -76,7 +76,7 @@ const ProviderFilters: React.FC<Props> = ({
         {showStrength ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
       </button>
       <div className={`relative h-8 overflow-hidden transition-all duration-300 ${
-        showStrength ? "w-[260px]" : "w-0"
+        showStrength ? "w-65" : "w-0"
       }`}>
         <div
           className={`flex h-full flex-nowrap items-center gap-1.5 transition-all duration-300 ${

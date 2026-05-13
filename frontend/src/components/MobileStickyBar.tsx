@@ -15,7 +15,7 @@ export default function MobileStickyBar() {
         zIndex: 40,
         boxShadow: '0 -4px 16px rgba(15,23,42,0.06)',
       }}
-      className="md:!hidden"
+      className="md:hidden!"
       >
         <button className="btn" style={{ flex: 1, justifyContent: 'center', height: 44 }}>
           <LocationIcon />
