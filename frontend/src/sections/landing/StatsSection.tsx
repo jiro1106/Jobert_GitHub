@@ -3,51 +3,24 @@ import { MOCK_STATS } from '../../types/coverage';
 
 export default function StatsSection() {
   return (
-    <div style={{ borderTop: '1px solid var(--line)', background: 'white' }}>
-      <div style={{
-        maxWidth: 1180,
-        margin: '0 auto',
-        padding: '0 16px',
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-      }}
-      className="md:!px-7 md:!grid-cols-4"
-      >
+    <div className="border-t border-[var(--line)] bg-white">
+      <div className="max-w-[1180px] mx-auto px-4 grid grid-cols-2 md:!px-7 md:!grid-cols-4">
         {MOCK_STATS.map((stat, i) => (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08, duration: 0.4, ease: 'easeOut' }}
-            style={{
-              padding: '16px 14px',
-              borderRight: '1px solid var(--line)',
-              borderBottom: '1px solid var(--line-soft)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              minWidth: 0,
-              /* Remove right border for every 2nd cell on mobile, last cell on desktop */
-            }}
-            className="md:!py-[18px] md:!px-6 md:!border-b-0 md:!gap-[14px]"
+            className="py-4 px-[14px] border-r border-r-[var(--line)] border-b border-b-[var(--line-soft)] flex items-center gap-3 min-w-0 md:!py-[18px] md:!px-6 md:!border-b-0 md:!gap-[14px]"
           >
-            <div style={{
-              fontFamily: 'var(--mono)',
-              fontSize: 22,
-              fontWeight: 600,
-              letterSpacing: '-0.5px',
-              color: 'var(--ink)',
-              lineHeight: 1,
-              flexShrink: 0,
-            }}
-            className="md:!text-[26px]"
+            <div
+              className="text-[22px] font-semibold tracking-[-0.5px] text-[var(--ink)] leading-none flex-shrink-0 md:!text-[26px]"
+              style={{ fontFamily: 'var(--mono)' }}
             >
               {stat.value}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--ink-4)', lineHeight: 1.3, minWidth: 0 }}
-            className="md:!text-[11.5px]"
-            >
-              <b style={{ color: 'var(--ink)', fontWeight: 600, display: 'block' }}>{stat.label}</b>
+            <div className="text-[11px] text-[var(--ink-4)] leading-[1.3] min-w-0 md:!text-[11.5px]">
+              <b className="text-[var(--ink)] font-semibold block">{stat.label}</b>
               {stat.sublabel}
             </div>
           </motion.div>

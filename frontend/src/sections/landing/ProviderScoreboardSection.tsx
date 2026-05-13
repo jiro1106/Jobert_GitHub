@@ -22,7 +22,7 @@ export default function ProviderScoreboardSection() {
       <div className="block-head">
         <div>
           <div className="eyebrow">02 · Provider scorecard</div>
-          <h2 className="h-section" style={{ marginTop: 6 }}>Side-by-side along this route</h2>
+          <h2 className="h-section mt-[6px]">Side-by-side along this route</h2>
           <div className="h-sub">Average signal score, fastest speed sample, and forecast confidence per provider.</div>
         </div>
         <div className="block-head-r">
@@ -40,13 +40,7 @@ export default function ProviderScoreboardSection() {
         </div>
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr',
-        gap: 14,
-      }}
-      className="sm:!grid-cols-2 lg:!grid-cols-3"
-      >
+      <div className="grid grid-cols-1 gap-[14px] sm:!grid-cols-2 lg:!grid-cols-3">
         {providers.map((provider, i) => (
           <motion.div
             key={provider.provider}
@@ -84,66 +78,50 @@ function ProviderCard({ provider, isBest }: { provider: ProviderScore; isBest: b
   const networkClass = provider.network === '5G' ? 'g5' : provider.network === '4G LTE' ? 'g4' : 'g3';
 
   return (
-    <div style={{
-      background: 'white',
-      border: isBest ? '1px solid var(--brand)' : '1px solid var(--line)',
-      borderRadius: 14,
-      padding: 18,
-      boxShadow: isBest
-        ? '0 0 0 3px rgba(31,79,255,0.08)'
-        : '0 1px 2px rgba(15,23,42,0.04)',
-      position: 'relative',
-      cursor: 'pointer',
-      transition: 'transform .12s, box-shadow .12s',
-    }}
-    className="sm:!p-4 hover:!-translate-y-0.5 hover:!shadow-lg"
+    <div
+      className="bg-white rounded-[14px] p-[18px] relative cursor-pointer transition-[transform,box-shadow] duration-[120ms] sm:!p-4 hover:!-translate-y-0.5 hover:!shadow-lg"
+      style={{
+        border: isBest ? '1px solid var(--brand)' : '1px solid var(--line)',
+        boxShadow: isBest
+          ? '0 0 0 3px rgba(31,79,255,0.08)'
+          : '0 1px 2px rgba(15,23,42,0.04)',
+      }}
     >
       {isBest && (
-        <div style={{
-          position: 'absolute',
-          top: -10,
-          left: 16,
-          background: 'var(--brand)',
-          color: 'white',
-          fontSize: 10,
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          padding: '3px 9px',
-          borderRadius: 999,
-        }}>
+        <div className="absolute -top-[10px] left-4 bg-[var(--brand)] text-white text-[10px] font-bold uppercase tracking-[0.06em] py-[3px] px-[9px] rounded-full">
           Best fit
         </div>
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="flex items-center justify-between mb-[14px]">
+        <div className="flex items-center gap-2.5">
           <div className={`prov-tile ${provider.provider}`}>{provider.name[0]}</div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>{provider.name}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>{provider.fullName}</div>
+            <div className="text-[15px] font-bold">{provider.name}</div>
+            <div className="text-[11px] text-[var(--ink-4)]">{provider.fullName}</div>
           </div>
         </div>
         <span className={`net-tag ${networkClass}`}>{provider.network}</span>
       </div>
 
       {/* Score */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 14 }}>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 38, fontWeight: 600, letterSpacing: '-1.5px', color: 'var(--ink)', lineHeight: 1 }}>
+      <div className="flex items-baseline gap-1.5 mb-[14px]">
+        <span
+          className="text-[38px] font-semibold tracking-[-1.5px] text-[var(--ink)] leading-none"
+          style={{ fontFamily: 'var(--mono)' }}
+        >
           {provider.score}
         </span>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--ink-5)' }}>/100</span>
-        <span style={{
-          marginLeft: 'auto',
-          fontFamily: 'var(--mono)',
-          fontSize: 11,
-          color: provider.delta >= 0 ? 'var(--ok)' : 'var(--bad)',
-          background: provider.delta >= 0 ? 'var(--ok-tint)' : 'var(--bad-tint)',
-          padding: '3px 7px',
-          borderRadius: 4,
-          fontWeight: 600,
-        }}>
+        <span className="text-[13px] text-[var(--ink-5)]" style={{ fontFamily: 'var(--mono)' }}>/100</span>
+        <span
+          className="ml-auto text-[11px] py-[3px] px-[7px] rounded-[4px] font-semibold"
+          style={{
+            fontFamily: 'var(--mono)',
+            color: provider.delta >= 0 ? 'var(--ok)' : 'var(--bad)',
+            background: provider.delta >= 0 ? 'var(--ok-tint)' : 'var(--bad-tint)',
+          }}
+        >
           {provider.delta >= 0 ? '▲' : '▼'} {Math.abs(provider.delta)}
         </span>
       </div>
@@ -151,18 +129,11 @@ function ProviderCard({ provider, isBest }: { provider: ProviderScore; isBest: b
       {/* Sparkline */}
       <div
         ref={sparkRef}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(28, 1fr)',
-          gap: 2,
-          height: 36,
-          alignItems: 'flex-end',
-          marginBottom: 14,
-        }}
+        className="grid grid-cols-[repeat(28,1fr)] gap-0.5 h-9 items-end mb-[14px]"
       />
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', paddingTop: 12, borderTop: '1px solid var(--line-soft)' }}>
+      <div className="grid grid-cols-3 pt-3 border-t border-[var(--line-soft)]">
         <ProvStat value={`${provider.avgSpeedMbps} Mbps`}    label="Avg speed" />
         <ProvStat value={`${provider.strongSignalPct}%`}      label="Strong sig." bordered />
         <ProvStat value={`${provider.confidencePct}%`}        label="Confidence" bordered />
@@ -173,13 +144,15 @@ function ProviderCard({ provider, isBest }: { provider: ProviderScore; isBest: b
 
 function ProvStat({ value, label, bordered }: { value: string; label: string; bordered?: boolean }) {
   return (
-    <div style={{
-      paddingLeft: bordered ? 12 : undefined,
-      paddingRight: bordered ? undefined : 8,
-      borderLeft: bordered ? '1px solid var(--line-soft)' : undefined,
-    }}>
-      <div style={{ fontFamily: 'var(--mono)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: 'var(--ink-4)', marginTop: 2 }}>{label}</div>
+    <div
+      style={{
+        paddingLeft: bordered ? 12 : undefined,
+        paddingRight: bordered ? undefined : 8,
+        borderLeft: bordered ? '1px solid var(--line-soft)' : undefined,
+      }}
+    >
+      <div className="text-sm font-semibold text-[var(--ink)]" style={{ fontFamily: 'var(--mono)' }}>{value}</div>
+      <div className="text-[10.5px] text-[var(--ink-4)] mt-0.5">{label}</div>
     </div>
   );
 }

@@ -23,87 +23,53 @@ export default function HeroPreviewCards() {
   }, []);
 
   return (
-    <div style={{ position: 'relative', height: 380 }}>
+    <div className="relative h-[380px]">
       {/* Mini map card */}
-      <div style={{
-        position: 'absolute',
-        top: 0, left: 30, right: 0, bottom: 60,
-        background: 'white',
-        border: '1px solid var(--line)',
-        borderRadius: 16,
-        boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.05)',
-        padding: 14,
-        overflow: 'hidden',
-      }}>
-        <div style={{ width: '100%', height: '100%', borderRadius: 10, overflow: 'hidden', background: '#E5EEF7', position: 'relative' }}>
+      <div
+        className="absolute top-0 left-[30px] right-0 bottom-[60px] bg-white border border-[var(--line)] rounded-2xl p-[14px] overflow-hidden"
+        style={{ boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.05)' }}
+      >
+        <div className="w-full h-full rounded-[10px] overflow-hidden bg-[#E5EEF7] relative">
           <MiniMapSVG />
         </div>
       </div>
 
       {/* Forecast strip card */}
-      <div style={{
-        position: 'absolute',
-        width: 260,
-        bottom: -18,
-        right: -18,
-        background: 'white',
-        border: '1px solid var(--line)',
-        borderRadius: 16,
-        boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.05)',
-        padding: 14,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>Globe · Best fit</span>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink-5)' }}>87 / 100</span>
+      <div
+        className="absolute w-[260px] -bottom-[18px] -right-[18px] bg-white border border-[var(--line)] rounded-2xl p-[14px]"
+        style={{ boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.05)' }}
+      >
+        <div className="flex items-center justify-between mb-[10px]">
+          <span className="text-xs font-bold text-[var(--ink)]">Globe · Best fit</span>
+          <span className="text-[10px] text-[var(--ink-5)]" style={{ fontFamily: 'var(--mono)' }}>87 / 100</span>
         </div>
         <div
           ref={barsRef}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(24, 1fr)',
-            gap: 2,
-            height: 36,
-            alignItems: 'flex-end',
-            marginBottom: 8,
-          }}
+          className="grid grid-cols-[repeat(24,1fr)] gap-0.5 h-9 items-end mb-2"
         />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
-          <span style={{ color: 'var(--ink-4)' }}>Strong coverage</span>
-          <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--ink)' }}>82% of route</span>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-[var(--ink-4)]">Strong coverage</span>
+          <span className="font-semibold text-[var(--ink)]" style={{ fontFamily: 'var(--mono)' }}>82% of route</span>
         </div>
       </div>
 
       {/* Origin pin chip */}
-      <div style={{
-        position: 'absolute',
-        top: -14,
-        left: -10,
-        background: 'white',
-        border: '1px solid var(--line)',
-        borderRadius: 16,
-        boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.05)',
-        padding: '10px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-      }}>
-        <div style={{
-          width: 28,
-          height: 28,
-          borderRadius: 8,
-          background: 'var(--brand)',
-          color: 'white',
-          display: 'grid',
-          placeItems: 'center',
-        }}>
+      <div
+        className="absolute -top-[14px] -left-[10px] bg-white border border-[var(--line)] rounded-2xl py-[10px] px-3 flex items-center gap-2.5"
+        style={{ boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.05)' }}
+      >
+        <div className="w-7 h-7 rounded-lg bg-[var(--brand)] text-white grid place-items-center">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
             <circle cx="12" cy="10" r="3"/>
           </svg>
         </div>
         <div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink-5)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Live</div>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>Manila → La Union</div>
+          <div
+            className="text-[10px] text-[var(--ink-5)] tracking-[0.06em] uppercase"
+            style={{ fontFamily: 'var(--mono)' }}
+          >Live</div>
+          <div className="text-[13px] font-bold">Manila → La Union</div>
         </div>
       </div>
     </div>

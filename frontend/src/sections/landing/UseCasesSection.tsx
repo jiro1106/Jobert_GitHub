@@ -1,45 +1,50 @@
-import { useState, useRef, useEffect } from 'react';
-import { MOCK_USE_CASES, MOCK_CHAT_MESSAGES } from '../../types/coverage';
-import type { ChatMessage } from '../../types/coverage';
+import { useState, useRef, useEffect } from "react";
+import { MOCK_USE_CASES, MOCK_CHAT_MESSAGES } from "../../types/coverage";
+import type { ChatMessage } from "../../types/coverage";
 
 const PROVIDER_COLORS: Record<string, string> = {
-  globe: '#1F4FFF',
-  smart: '#E11D48',
-  dito:  '#4F46E5',
+  globe: "#1F4FFF",
+  smart: "#E11D48",
+  dito: "#4F46E5",
 };
 
 const QUICK_PROMPTS = [
-  'Which SIM for Baguio trip?',
-  'Signal near EDSA?',
-  'Globe vs Smart in Cebu?',
+  "Which SIM for Baguio trip?",
+  "Signal near EDSA?",
+  "Globe vs Smart in Cebu?",
 ];
 
 export default function UseCasesSection() {
   const [messages, setMessages] = useState<ChatMessage[]>(MOCK_CHAT_MESSAGES);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    if (bodyRef.current)
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
   }, [messages, isTyping]);
 
   function send(text: string) {
     if (!text.trim()) return;
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      text,
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
     setIsTyping(true);
     /* Simulated bot reply — PLACEHOLDER for real agent response */
     setTimeout(() => {
       setIsTyping(false);
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        role: 'bot',
-        text: 'Based on 14,210 community readings along this route, Globe provides the most consistent 4G LTE coverage through rural stretches.',
-        citation: 'Crowdsourced Summary Agent',
+        role: "bot",
+        text: "Based on 14,210 community readings along this route, Globe provides the most consistent 4G LTE coverage through rural stretches.",
+        citation: "Crowdsourced Summary Agent",
       };
-      setMessages(prev => [...prev, botMsg]);
+      setMessages((prev) => [...prev, botMsg]);
     }, 1400);
   }
 
@@ -48,43 +53,57 @@ export default function UseCasesSection() {
       <div className="block-head">
         <div>
           <div className="eyebrow">03 · Who uses SignalPH</div>
-          <h2 className="h-section" style={{ marginTop: 6 }}>Built for every kind of traveler</h2>
-          <div className="h-sub">From daily commuters to field workers — see which SIM works best for your journey type.</div>
+          <h2 className="h-section mt-[6px]">
+            Built for every kind of traveler
+          </h2>
+          <div className="h-sub">
+            From daily commuters to field workers — see which SIM works best for
+            your journey type.
+          </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}
-      className="lg:!grid-cols-2 lg:!gap-[18px]"
-      >
+      <div className="grid grid-cols-1 gap-[14px] lg:!grid-cols-2 lg:!gap-[18px]">
         {/* Use case table */}
         <div className="panel">
           <div className="panel-head">
             <div className="panel-title">Popular use cases</div>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink-5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Best SIM</span>
+            <span
+              className="text-[10px] text-[var(--ink-5)] uppercase tracking-[0.05em]"
+              style={{ fontFamily: "var(--mono)" }}
+            >
+              Best SIM
+            </span>
           </div>
           <div>
             {MOCK_USE_CASES.map((uc, i) => (
-              <div key={uc.id} style={{
-                display: 'grid',
-                gridTemplateColumns: '32px 1fr auto',
-                gap: 14,
-                alignItems: 'center',
-                padding: '14px 18px',
-                borderTop: i === 0 ? 0 : '1px solid var(--line-soft)',
-                cursor: 'pointer',
-              }}
-              className="hover:!bg-[var(--tint)]"
+              <div
+                key={uc.id}
+                className="grid grid-cols-[32px_1fr_auto] gap-[14px] items-center py-[14px] px-[18px] cursor-pointer hover:!bg-[var(--tint)]"
+                style={{
+                  borderTop: i === 0 ? 0 : "1px solid var(--line-soft)",
+                }}
               >
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-tint)', color: 'var(--brand-ink)', display: 'grid', placeItems: 'center', fontSize: 16 }}>
-                  {uc.icon}
+                <div className="w-8 h-8 rounded-lg bg-[var(--brand-tint)] text-[var(--brand-ink)] grid place-items-center">
+                  <uc.icon size={16} strokeWidth={2.2} />
                 </div>
+
                 <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{uc.title}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--ink-4)', marginTop: 1 }}>{uc.subtitle}</div>
+                  <div className="text-[13.5px] font-semibold text-[var(--ink)]">
+                    {uc.title}
+                  </div>
+                  <div className="text-[11.5px] text-[var(--ink-4)] mt-px">
+                    {uc.subtitle}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: PROVIDER_COLORS[uc.bestProvider] }} />
-                  {uc.bestProvider.charAt(0).toUpperCase() + uc.bestProvider.slice(1)}
+
+                <div className="flex items-center gap-2 font-bold text-[13px]">
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ background: PROVIDER_COLORS[uc.bestProvider] }}
+                  />
+                  {uc.bestProvider.charAt(0).toUpperCase() +
+                    uc.bestProvider.slice(1)}
                 </div>
               </div>
             ))}
@@ -92,10 +111,10 @@ export default function UseCasesSection() {
         </div>
 
         {/* AI assistant chat */}
-        <div className="panel" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="panel flex flex-col">
           <div className="panel-head">
             <div className="panel-title">
-              <span style={{ fontSize: 14 }}>✦</span>
+              <span className="text-sm">✦</span>
               Ask SignalPH
               <span className="badge">AI</span>
             </div>
@@ -104,50 +123,32 @@ export default function UseCasesSection() {
           {/* Chat body */}
           <div
             ref={bodyRef}
-            style={{
-              flex: 1,
-              padding: 18,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-              background: 'var(--tint)',
-              borderBottom: '1px solid var(--line)',
-              minHeight: 240,
-              overflowY: 'auto',
-            }}
+            className="flex-1 p-[18px] flex flex-col gap-2.5 bg-[var(--tint)] border-b border-[var(--line)] min-h-[240px] overflow-y-auto"
           >
-            {messages.map(msg => (
+            {messages.map((msg) => (
               <div
                 key={msg.id}
                 style={{
-                  maxWidth: '88%',
-                  padding: '10px 13px',
+                  maxWidth: "88%",
+                  padding: "10px 13px",
                   borderRadius: 12,
                   fontSize: 13,
                   lineHeight: 1.5,
-                  alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                  background: msg.role === 'user' ? 'var(--ink)' : 'white',
-                  border: msg.role === 'bot' ? '1px solid var(--line)' : 'none',
-                  color: msg.role === 'user' ? 'white' : 'var(--ink)',
-                  borderBottomRightRadius: msg.role === 'user' ? 4 : 12,
-                  borderBottomLeftRadius: msg.role === 'bot' ? 4 : 12,
+                  alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+                  background: msg.role === "user" ? "var(--ink)" : "white",
+                  border: msg.role === "bot" ? "1px solid var(--line)" : "none",
+                  color: msg.role === "user" ? "white" : "var(--ink)",
+                  borderBottomRightRadius: msg.role === "user" ? 4 : 12,
+                  borderBottomLeftRadius: msg.role === "bot" ? 4 : 12,
                 }}
               >
                 {msg.text}
                 {msg.citation && (
-                  <div style={{ marginTop: 6 }}>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      background: 'var(--brand-tint)',
-                      color: 'var(--brand-ink)',
-                      borderRadius: 5,
-                      padding: '3px 7px',
-                      fontFamily: 'var(--mono)',
-                      fontSize: 10,
-                      fontWeight: 600,
-                    }}>
+                  <div className="mt-1.5">
+                    <span
+                      className="inline-flex items-center gap-[5px] bg-[var(--brand-tint)] text-[var(--brand-ink)] rounded-[5px] py-[3px] px-[7px] text-[10px] font-semibold"
+                      style={{ fontFamily: "var(--mono)" }}
+                    >
                       ↗ {msg.citation}
                     </span>
                   </div>
@@ -157,46 +158,25 @@ export default function UseCasesSection() {
 
             {/* Typing indicator */}
             {isTyping && (
-              <div style={{
-                display: 'inline-flex',
-                gap: 3,
-                alignSelf: 'flex-start',
-                padding: '9px 12px',
-                background: 'white',
-                border: '1px solid var(--line)',
-                borderRadius: 12,
-                borderBottomLeftRadius: 4,
-              }}>
+              <div className="inline-flex gap-[3px] self-start py-[9px] px-3 bg-white border border-[var(--line)] rounded-xl rounded-bl-[4px]">
                 {[0, 0.2, 0.4].map((delay, i) => (
-                  <span key={i} style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: '50%',
-                    background: 'var(--ink-5)',
-                    animation: `bounce 1.2s ${delay}s infinite`,
-                  }} />
+                  <span
+                    key={i}
+                    className="w-[5px] h-[5px] rounded-full bg-[var(--ink-5)]"
+                    style={{ animation: `bounce 1.2s ${delay}s infinite` }}
+                  />
                 ))}
               </div>
             )}
           </div>
 
           {/* Quick prompts */}
-          <div style={{ display: 'flex', gap: 6, padding: '10px 14px', borderBottom: '1px solid var(--line-soft)', overflowX: 'auto' }}>
-            {QUICK_PROMPTS.map(prompt => (
+          <div className="flex gap-1.5 py-[10px] px-[14px] border-b border-[var(--line-soft)] overflow-x-auto">
+            {QUICK_PROMPTS.map((prompt) => (
               <button
                 key={prompt}
                 onClick={() => send(prompt)}
-                style={{
-                  flexShrink: 0,
-                  border: '1px solid var(--line)',
-                  background: 'white',
-                  borderRadius: 999,
-                  padding: '5px 11px',
-                  fontSize: 11.5,
-                  fontWeight: 500,
-                  color: 'var(--ink-3)',
-                  whiteSpace: 'nowrap',
-                }}
+                className="flex-shrink-0 border border-[var(--line)] bg-white rounded-full py-[5px] px-[11px] text-[11.5px] font-medium text-[var(--ink-3)] whitespace-nowrap"
               >
                 {prompt}
               </button>
@@ -204,38 +184,31 @@ export default function UseCasesSection() {
           </div>
 
           {/* Input */}
-          <div style={{ display: 'flex', gap: 8, padding: '12px 14px', alignItems: 'center' }}>
+          <div className="flex gap-2 py-3 px-[14px] items-center">
             <input
               value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') send(input); }}
-              placeholder="Ask about signal coverage…"
-              style={{
-                flex: 1,
-                border: '1px solid var(--line)',
-                borderRadius: 9,
-                padding: '9px 12px',
-                fontSize: 13,
-                fontFamily: 'inherit',
-                outline: 'none',
-                color: 'var(--ink)',
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") send(input);
               }}
+              placeholder="Ask about signal coverage…"
+              className="flex-1 border border-[var(--line)] rounded-[9px] py-[9px] px-3 text-[13px] outline-none text-[var(--ink)]"
+              style={{ fontFamily: "inherit" }}
             />
             <button
               onClick={() => send(input)}
-              style={{
-                background: 'var(--brand)',
-                color: 'white',
-                border: 0,
-                borderRadius: 9,
-                width: 36,
-                height: 36,
-                display: 'grid',
-                placeItems: 'center',
-              }}
+              className="bg-[var(--brand)] text-white border-0 rounded-[9px] w-9 h-9 grid place-items-center"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M5 12h14M13 5l7 7-7 7"/>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              >
+                <path d="M5 12h14M13 5l7 7-7 7" />
               </svg>
             </button>
           </div>
