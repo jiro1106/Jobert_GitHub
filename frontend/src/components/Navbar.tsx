@@ -161,7 +161,7 @@ export default function Navbar() {
       <div
         style={{
           position: "fixed",
-          inset: "56px 0 0 0",
+          inset: "80px 0 0 0",
           background: "white",
           zIndex: 49,
           padding: 16,
