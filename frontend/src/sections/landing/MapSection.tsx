@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MOCK_ROUTE_FORECAST } from '../../types/coverage';
-import GoogleMaps from '../../components/map/MapComponent';
+import MapComponent from '../../components/map/MapComponent';
 import type { TravelMode } from '../../types/coverage';
 
 /* ============================================================
@@ -85,7 +85,7 @@ function MapCard() {
       boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
     }}>
       <div style={{ position: 'relative', height: 500 }}>
-        <GoogleMaps />
+        <MapComponent />
       </div>
     </div>
   );

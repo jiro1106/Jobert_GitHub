@@ -82,7 +82,7 @@ const getPixelCenter = (width: number, height: number) => ({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const GoogleMaps: React.FC<Props> = ({ onLocationChange }) => {
+const MapComponent: React.FC<Props> = ({ onLocationChange }) => {
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string,
     libraries: LIBRARIES,
@@ -258,4 +258,4 @@ const GoogleMaps: React.FC<Props> = ({ onLocationChange }) => {
   );
 };
 
-export default GoogleMaps;
+export default MapComponent;
