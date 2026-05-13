@@ -1,94 +1,49 @@
-// src/ai/chatbotOrchestrator.ts
-
 import { LFMClient } from "../ai/lfmClient";
-import { buildRouterPrompt } from "../ai/prompts";
+import { RouterAgent } from "../agents/routerAgent";
+import { SimRecommenderAgent } from "../agents/simRecommenderAgent";
+import { CoverageExplainerAgent } from "../agents/coverageExplainerAgent";
+import { ReportSummarizerAgent } from "../agents/reportSummarizerAgent";
+import { TowerMapperAgent } from "../agents/towerMapperAgent";
+import { OfflineReadinessAgent } from "../agents/offlineReadinessAgent";
+import { AnomalyAgent } from "../agents/anomalyAgent";
+import { FinalAnswerAgent } from "../agents/finalAnswerAgent";
+import { executeToolCalls } from "./toolExecutor";
+import type {
+  AgentOutputs,
+  ChatbotInput,
+  FinalChatbotResponse,
+} from "./a2aMessages";
 
-type ChatbotInput = {
-  prompt: string;
-  latitude?: number;
-  longitude?: number;
-  radius_km?: number;
-  origin?: any;
-  destination?: any;
-  route_points?: any[];
-  current_analysis_result?: any;
-};
-
-async function callBackendTool(name: string, argumentsPayload: any) {
-  const response = await fetch("http://127.0.0.1:8000/mcp/tools/call", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name,
-      arguments: argumentsPayload,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Tool call failed: ${response.status} ${errorText}`);
-  }
-
-  return response.json();
+function createTraceId() {
+  return crypto.randomUUID?.() || `trace-${Date.now()}`;
 }
 
-function buildFinalAnswer(input: {
-  prompt: string;
-  plan: any;
-  toolResults: any[];
-  currentAnalysisResult?: any;
-}) {
-  const mainToolResult = input.toolResults[0]?.data;
-  const analysis = mainToolResult || input.currentAnalysisResult;
+function getPrimaryAnalysisResult(toolResults: any[], input: ChatbotInput) {
+  const successfulTool = toolResults.find((tool) => tool.status === "success");
 
-  if (!analysis) {
-    return {
-      intent: input.plan.intent,
-      answer: "I need a selected point, route, or existing analysis result before I can answer that.",
-      recommended_provider: "Unknown",
-      confidence: "low",
-      analysis_result: null,
-      map_layers: null,
-      tool_calls: input.toolResults.map((result) => ({
-        name: result.tool,
-        status: result.status,
-      })),
-      warnings: input.plan.missing_inputs || [],
-    };
+  if (successfulTool?.data) {
+    return successfulTool.data;
   }
 
-  const bestProvider = analysis.best_provider || "Unknown";
-
-  return {
-    intent: input.plan.intent,
-    answer:
-      analysis.recommendation_text ||
-      `${bestProvider} is recommended based on the current SignalPH analysis.`,
-    recommended_provider: bestProvider,
-    confidence:
-      analysis.weak_segments?.length > 0
-        ? "medium"
-        : bestProvider === "Unknown"
-          ? "low"
-          : "high",
-    analysis_result: analysis,
-    map_layers: analysis.map_layers || null,
-    tool_calls: input.toolResults.map((result) => ({
-      name: result.tool,
-      status: result.status,
-    })),
-    warnings: analysis.offline_readiness_alerts || [],
-  };
+  return input.current_analysis_result || null;
 }
 
 export class ChatbotOrchestrator {
   private lfm = new LFMClient();
 
-  async answer(input: ChatbotInput) {
-    const routerPrompt = buildRouterPrompt(input);
-    const plan = await this.lfm.generateJson(routerPrompt);
+  private routerAgent = new RouterAgent(this.lfm);
+  private simRecommenderAgent = new SimRecommenderAgent(this.lfm);
+  private coverageExplainerAgent = new CoverageExplainerAgent(this.lfm);
+  private reportSummarizerAgent = new ReportSummarizerAgent(this.lfm);
+  private towerMapperAgent = new TowerMapperAgent();
+  private offlineReadinessAgent = new OfflineReadinessAgent(this.lfm);
+  private anomalyAgent = new AnomalyAgent(this.lfm);
+  private finalAnswerAgent = new FinalAnswerAgent(this.lfm);
+
+  async answer(input: ChatbotInput): Promise<FinalChatbotResponse> {
+    const traceId = createTraceId();
+
+    const plan = await this.routerAgent.plan(input);
 
     if (plan.missing_inputs?.length > 0) {
       return {
@@ -97,33 +52,66 @@ export class ChatbotOrchestrator {
         recommended_provider: "Unknown",
         confidence: "low",
         analysis_result: null,
+        agent_outputs: {},
         map_layers: null,
         tool_calls: [],
         warnings: plan.missing_inputs,
+        trace_id: traceId,
       };
     }
 
-    if (plan.intent === "explain_current_result") {
-      return buildFinalAnswer({
-        prompt: input.prompt,
-        plan,
-        toolResults: [],
-        currentAnalysisResult: input.current_analysis_result,
-      });
+    const toolResults =
+      plan.tool_calls?.length > 0 ? await executeToolCalls(plan.tool_calls) : [];
+
+    const analysisResult = getPrimaryAnalysisResult(toolResults, input);
+
+    if (!analysisResult) {
+      return {
+        intent: plan.intent,
+        answer:
+          "I need a current analysis result or enough location/route data before I can answer that.",
+        recommended_provider: "Unknown",
+        confidence: "low",
+        analysis_result: null,
+        agent_outputs: {},
+        map_layers: null,
+        tool_calls: toolResults.map((tool) => ({
+          name: tool.name,
+          status: tool.status,
+        })),
+        warnings: ["No analysis result available."],
+        trace_id: traceId,
+      };
     }
 
-    const toolResults = [];
+    const agentOutputs: AgentOutputs = {};
 
-    for (const toolCall of plan.tool_calls || []) {
-      const result = await callBackendTool(toolCall.name, toolCall.arguments);
-      toolResults.push(result);
-    }
+    agentOutputs.sim_recommender =
+      await this.simRecommenderAgent.run(analysisResult);
 
-    return buildFinalAnswer({
-      prompt: input.prompt,
+    agentOutputs.coverage_explainer =
+      await this.coverageExplainerAgent.run(analysisResult);
+
+    agentOutputs.report_summarizer =
+      await this.reportSummarizerAgent.run(analysisResult);
+
+    agentOutputs.offline_readiness =
+      await this.offlineReadinessAgent.run(analysisResult);
+
+    agentOutputs.anomaly = await this.anomalyAgent.run(analysisResult);
+
+    const towerMapOutput = this.towerMapperAgent.run(analysisResult);
+    agentOutputs.tower_mapper = towerMapOutput;
+
+    const finalAnswer = await this.finalAnswerAgent.run({
+      traceId,
       plan,
+      analysisResult,
+      agentOutputs,
+      mapLayers: towerMapOutput.map_layers,
       toolResults,
-      currentAnalysisResult: input.current_analysis_result,
     });
+
+    return finalAnswer;
   }
 }

@@ -1,9 +1,8 @@
-// src/ai/toolSchemas.ts
-
 export const SIGNALPH_TOOLS = [
   {
     name: "analyze_point",
-    description: "Analyze signal coverage at one selected point.",
+    description:
+      "Analyze signal coverage at one selected geographic point.",
     parameters: {
       type: "object",
       properties: {
@@ -16,7 +15,8 @@ export const SIGNALPH_TOOLS = [
   },
   {
     name: "analyze_route",
-    description: "Analyze signal coverage along multiple route points.",
+    description:
+      "Analyze signal coverage along a route using origin, destination, and optional route_points.",
     parameters: {
       type: "object",
       properties: {
@@ -56,13 +56,17 @@ export const SIGNALPH_TOOLS = [
   },
   {
     name: "submit_signal_report",
-    description: "Submit a crowdsourced signal quality report.",
+    description:
+      "Submit a crowdsourced signal quality report for a provider at a location.",
     parameters: {
       type: "object",
       properties: {
         latitude: { type: "number" },
         longitude: { type: "number" },
-        provider_name: { type: "string", enum: ["Globe", "Smart", "DITO", "Other"] },
+        provider_name: {
+          type: "string",
+          enum: ["Globe", "Smart", "DITO", "Other"],
+        },
         signal_feedback: { type: "string" },
         speed_feedback: { type: "string" },
         issue_type: { type: "string" },
@@ -71,4 +75,6 @@ export const SIGNALPH_TOOLS = [
       required: ["latitude", "longitude", "provider_name"],
     },
   },
-];
+] as const;
+
+export const ALLOWED_TOOL_NAMES = SIGNALPH_TOOLS.map((tool) => tool.name);

@@ -1,41 +1,59 @@
-// src/ai/lfmClient.ts
+import { parseModelJson } from "./jsonUtils";
 
-export function extractJson(text: string) {
-  const firstBrace = text.indexOf("{");
-  const lastBrace = text.lastIndexOf("}");
+type LFMMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
 
-  if (firstBrace === -1 || lastBrace === -1) {
-    throw new Error("No JSON object found in model output.");
-  }
-
-  const jsonText = text.slice(firstBrace, lastBrace + 1);
-  return JSON.parse(jsonText);
-}
-
-// Placeholder interface so your orchestrator is ready.
-// Replace generate() internals with your wllama call.
 export class LFMClient {
-  private loaded = false;
+  private baseUrl: string;
+  private modelName: string;
 
-  async load() {
-    if (this.loaded) return;
-
-    // TODO:
-    // Load LFM2.5-350M GGUF using wllama.
-    // Start with Q4/Q5 GGUF if available for browser performance.
-    this.loaded = true;
+  constructor() {
+    this.baseUrl =
+      import.meta.env.VITE_LFM_BASE_URL || "http://127.0.0.1:8020/v1";
+    this.modelName = import.meta.env.VITE_LFM_MODEL_NAME || "local-lfm";
   }
 
-  async generate(prompt: string): Promise<string> {
-    await this.load();
+  async chat(messages: LFMMessage[], maxTokens = 512): Promise<string> {
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: this.modelName,
+        messages,
+        temperature: 0.0,
+        max_tokens: maxTokens,
+      }),
+    });
 
-    // TODO:
-    // Replace this with actual wllama completion.
-    throw new Error("LFM generate() not implemented yet.");
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`LFM request failed: ${response.status} ${errorText}`);
+    }
+
+    const payload = await response.json();
+    return payload.choices?.[0]?.message?.content ?? "";
   }
 
-  async generateJson(prompt: string) {
-    const text = await this.generate(prompt);
-    return extractJson(text);
+  async generateJson<T>(prompt: string, maxTokens = 512): Promise<T> {
+    const content = await this.chat(
+      [
+        {
+          role: "system",
+          content:
+            "You are a JSON-only assistant. Return only raw JSON. Do not use markdown.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      maxTokens
+    );
+
+    return parseModelJson<T>(content);
   }
 }
