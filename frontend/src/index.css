@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+
+
 /* ============================================================
    DESIGN TOKENS — ported from SignalPH v2.html
    ============================================================ */
@@ -216,7 +218,7 @@
 .panel-title .badge {
   font-family: var(--mono);
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 800;
   color: var(--brand);
   background: var(--brand-tint);
   padding: 2px 7px;

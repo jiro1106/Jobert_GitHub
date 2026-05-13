@@ -1,11 +1,13 @@
 import { useState } from "react";
+import { NavLink, Link } from "react-router";
+import logo from "../assets/logo.png";
 
 const NAV_LINKS = [
-  { label: "Route forecast", active: true },
-  { label: "Coverage map", active: false },
-  { label: "Providers", active: false },
-  { label: "Community", active: false },
-  { label: "About", active: false },
+  { label: "Route forecast", to: "/" },
+  { label: "Coverage map", to: "/maps" },
+  { label: "Providers", to: null },
+  { label: "Community", to: null },
+  { label: "About", to: null },
 ];
 
 export default function Navbar() {
@@ -31,14 +33,13 @@ export default function Navbar() {
         className="md:!h-[60px] md:!px-7"
       >
         {/* Logo */}
-        <a href="#" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div className="logo-mark" />
-          <div
-            style={{ fontWeight: 800, fontSize: 15, letterSpacing: "-0.3px" }}
-          >
-            Signal<span style={{ color: "var(--brand)" }}>PH</span>
-          </div>
-        </a>
+        <Link to="/" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <img
+            src={logo}
+            alt="SignalPH Logo"
+            style={{ width: 100, height: 100 }}
+          />
+        </Link>
 
         {/* Desktop nav links — hidden below 980px */}
         <div
@@ -59,22 +60,40 @@ export default function Navbar() {
           }}
           className="nav-links-desktop"
         >
-          {NAV_LINKS.map(({ label, active }) => (
-            <a
-              key={label}
-              href="#"
-              style={{
-                fontSize: 13,
-                color: active ? "var(--ink)" : "var(--ink-3)",
-                padding: "6px 12px",
-                borderRadius: 6,
-                fontWeight: 500,
-                background: active ? "var(--line-soft)" : "transparent",
-              }}
-            >
-              {label}
-            </a>
-          ))}
+          {NAV_LINKS.map(({ label, to }) =>
+            to ? (
+              <NavLink
+                key={label}
+                to={to}
+                end={to === "/"}
+                style={({ isActive }) => ({
+                  fontSize: 13,
+                  color: isActive ? "var(--ink)" : "var(--ink-3)",
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  fontWeight: 500,
+                  background: isActive ? "var(--line-soft)" : "transparent",
+                  textDecoration: "none",
+                })}
+              >
+                {label}
+              </NavLink>
+            ) : (
+              <a
+                key={label}
+                href="#"
+                style={{
+                  fontSize: 13,
+                  color: "var(--ink-3)",
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  fontWeight: 500,
+                }}
+              >
+                {label}
+              </a>
+            )
+          )}
         </div>
 
         {/* Right actions */}
@@ -120,23 +139,43 @@ export default function Navbar() {
           borderTop: "1px solid var(--line)",
         }}
       >
-        {NAV_LINKS.map(({ label, active }) => (
-          <a
-            key={label}
-            href="#"
-            onClick={() => setIsOpen(false)}
-            style={{
-              display: "block",
-              padding: "14px 4px",
-              fontSize: 16,
-              fontWeight: 600,
-              color: active ? "var(--brand)" : "var(--ink)",
-              borderBottom: "1px solid var(--line-soft)",
-            }}
-          >
-            {label}
-          </a>
-        ))}
+        {NAV_LINKS.map(({ label, to }) =>
+          to ? (
+            <NavLink
+              key={label}
+              to={to}
+              end={to === "/"}
+              onClick={() => setIsOpen(false)}
+              style={({ isActive }) => ({
+                display: "block",
+                padding: "14px 4px",
+                fontSize: 16,
+                fontWeight: 600,
+                color: isActive ? "var(--brand)" : "var(--ink)",
+                borderBottom: "1px solid var(--line-soft)",
+                textDecoration: "none",
+              })}
+            >
+              {label}
+            </NavLink>
+          ) : (
+            <a
+              key={label}
+              href="#"
+              onClick={() => setIsOpen(false)}
+              style={{
+                display: "block",
+                padding: "14px 4px",
+                fontSize: 16,
+                fontWeight: 600,
+                color: "var(--ink)",
+                borderBottom: "1px solid var(--line-soft)",
+              }}
+            >
+              {label}
+            </a>
+          )
+        )}
         <div
           style={{
             marginTop: 16,
