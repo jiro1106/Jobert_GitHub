@@ -14,10 +14,10 @@ def test_imports():
     # can we import?
     print("Testing imports...")
     try:
-        print("✓ All imports successful")
+        print("[OK] All imports successful")
         return True
     except Exception as e:
-        print(f"✗ Import failed: {e}")
+        print(f"[FAILED] Import failed: {e}")
         return False
 
 def test_server_initialization():
@@ -26,10 +26,10 @@ def test_server_initialization():
     try:
         from backend.mcp_server.server import MCPServer
         server = MCPServer()
-        print("✓ Server initialized successfully")
+        print("[OK] Server initialized successfully")
         return True
     except Exception as e:
-        print(f"✗ Server initialization failed: {e}")
+        print(f"[FAILED] Server initialization failed: {e}")
         return False
 
 def test_list_tools():
@@ -40,12 +40,12 @@ def test_list_tools():
         server = MCPServer()
         response = server.handle_list_tools()
         tools = response.get("tools", [])
-        print(f"✓ Found {len(tools)} tools:")
+        print(f"[OK] Found {len(tools)} tools:")
         for tool in tools:
             print(f"  - {tool['name']}")
         return len(tools) == 3
     except Exception as e:
-        print(f"✗ List tools failed: {e}")
+        print(f"[FAILED] List tools failed: {e}")
         return False
 
 def test_list_resources():
@@ -56,12 +56,12 @@ def test_list_resources():
         server = MCPServer()
         response = server.handle_list_resources()
         resources = response.get("resources", [])
-        print(f"✓ Found {len(resources)} resources:")
+        print(f"[OK] Found {len(resources)} resources:")
         for resource in resources:
             print(f"  - {resource['uri']}")
         return len(resources) == 4
     except Exception as e:
-        print(f"✗ List resources failed: {e}")
+        print(f"[FAILED] List resources failed: {e}")
         return False
 
 def test_call_analyze_point_tool():
@@ -82,13 +82,13 @@ def test_call_analyze_point_tool():
         if "content" in result and len(result["content"]) > 0:
             content = result["content"][0].get("text", "")
             data = json.loads(content) if content else {}
-            print(f"✓ analyze_point returned valid response with best_provider: {data.get('best_provider', 'N/A')}")
+            print(f"[OK] analyze_point returned valid response with best_provider: {data.get('best_provider', 'N/A')}")
             return True
         else:
-            print(f"✗ analyze_point returned invalid structure: {result}")
+            print(f"[FAILED] analyze_point returned invalid structure: {result}")
             return False
     except Exception as e:
-        print(f"✗ analyze_point tool failed: {e}")
+        print(f"[FAILED] analyze_point tool failed: {e}")
         return False
 
 def test_call_analyze_route_tool():
@@ -108,13 +108,13 @@ def test_call_analyze_route_tool():
         if "content" in result and len(result["content"]) > 0:
             content = result["content"][0].get("text", "")
             data = json.loads(content) if content else {}
-            print(f"✓ analyze_route returned valid response with best_provider: {data.get('best_provider', 'N/A')}")
+            print(f"[OK] analyze_route returned valid response with best_provider: {data.get('best_provider', 'N/A')}")
             return True
         else:
-            print(f"✗ analyze_route returned invalid structure: {result}")
+            print(f"[FAILED] analyze_route returned invalid structure: {result}")
             return False
     except Exception as e:
-        print(f"✗ analyze_route tool failed: {e}")
+        print(f"[FAILED] analyze_route tool failed: {e}")
         return False
 
 def test_call_submit_report_tool():
@@ -137,16 +137,16 @@ def test_call_submit_report_tool():
             content = result["content"][0].get("text", "")
             data = json.loads(content) if content else {}
             if data.get("status") == "saved":
-                print(f"✓ submit_signal_report saved successfully (id: {data.get('report_id', 'N/A')})")
+                print(f"[OK] submit_signal_report saved successfully (id: {data.get('report_id', 'N/A')})")
                 return True
             else:
-                print(f"✗ submit_signal_report returned unexpected status: {data.get('status')}")
+                print(f"[FAILED] submit_signal_report returned unexpected status: {data.get('status')}")
                 return False
         else:
-            print(f"✗ submit_signal_report returned invalid structure: {result}")
+            print(f"[FAILED] submit_signal_report returned invalid structure: {result}")
             return False
     except Exception as e:
-        print(f"✗ submit_signal_report tool failed: {e}")
+        print(f"[FAILED] submit_signal_report tool failed: {e}")
         return False
 
 def test_read_resource():
@@ -162,13 +162,13 @@ def test_read_resource():
             content = result["contents"][0].get("text", "")
             data = json.loads(content) if content else {}
             report_count = len(data) if isinstance(data, list) else 0
-            print(f"✓ read resource returned {report_count} recent reports")
+            print(f"[OK] read resource returned {report_count} recent reports")
             return True
         else:
-            print(f"✗ read resource returned invalid structure: {result}")
+            print(f"[FAILED] read resource returned invalid structure: {result}")
             return False
     except Exception as e:
-        print(f"✗ read resource failed: {e}")
+        print(f"[FAILED] read resource failed: {e}")
         return False
 
 def main():
@@ -194,7 +194,7 @@ def main():
         try:
             results.append(test())
         except Exception as e:
-            print(f"✗ Test {test.__name__} crashed: {e}")
+            print(f"[FAILED] Test {test.__name__} crashed: {e}")
             results.append(False)
         print()
     
@@ -205,13 +205,13 @@ def main():
     print("=" * 60)
     
     if passed == total:
-        print("✓ All tests passed! MCP server is ready to use.")
+        print("[OK] All tests passed! MCP server is ready to use.")
         print()
         print("To start the server, run:")
         print("  python run_mcp_server.py")
         return 0
     else:
-        print("✗ Some tests failed. Please check the output above.")
+        print("[FAILED] Some tests failed. Please check the output above.")
         return 1
 
 if __name__ == "__main__":
