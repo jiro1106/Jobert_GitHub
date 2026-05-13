@@ -1,8 +1,10 @@
-import { JSX, useState } from "react";
+import { JSX, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import HeroPreviewCards from "./HeroPreviewCards";
 import { POPULAR_ROUTES } from "../../types/coverage";
+import { ArrowRight } from "lucide-react";
 
 type SearchTab = "route" | "place" | "live";
 
@@ -70,6 +72,54 @@ const item: Variants = {
 
 export default function HeroSection() {
   const [activeTab, setActiveTab] = useState<SearchTab>("route");
+  const [routeFrom, setRouteFrom] = useState("Makati, Metro Manila");
+  const [routeTo, setRouteTo] = useState("San Fernando, La Union");
+  const [placeQuery, setPlaceQuery] = useState("");
+  const navigate = useNavigate();
+
+  const popularRoutes = useMemo(() => POPULAR_ROUTES, []);
+
+  const goToMap = (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from?.trim()) params.set("from", from.trim());
+    if (to?.trim()) params.set("to", to.trim());
+    const query = params.toString();
+    navigate(query ? `/maps?${query}` : "/maps");
+  };
+
+  const handleForecast = () => {
+    const params = new URLSearchParams();
+    if (routeFrom.trim()) params.set("from", routeFrom.trim());
+    if (routeTo.trim()) params.set("to", routeTo.trim());
+    const query = params.toString();
+    navigate(query ? `/?${query}` : "/", { replace: true });
+
+    const target = document.getElementById("route-forecast");
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    goToMap(routeFrom, routeTo);
+  };
+
+  const handlePlaceCheck = () => {
+    if (!placeQuery.trim()) return;
+    goToMap(undefined, placeQuery);
+  };
+
+  const applyPopularRoute = (route: string) => {
+    const parts = route.split("→").map((part) => part.trim());
+    if (parts.length === 2) {
+      setRouteFrom(parts[0]);
+      setRouteTo(parts[1]);
+      return;
+    }
+    const fallback = route.split("->").map((part) => part.trim());
+    if (fallback.length === 2) {
+      setRouteFrom(fallback[0]);
+      setRouteTo(fallback[1]);
+    }
+  };
 
   return (
     <section
@@ -126,7 +176,7 @@ export default function HeroSection() {
             className="min-h-[260px] sm:min-h-[170px]"
           >
             <div
-              className="inline-flex bg-white border border-[var(--line)] rounded-[10px] p-1 mb-[10px]"
+              className="inline-flex bg-white border border-(--line) rounded-[10px] p-1 mb-[10px]"
               role="tablist"
             >
               {TABS.map((tab) => (
@@ -148,126 +198,26 @@ export default function HeroSection() {
               ))}
             </div>
             {activeTab === "route" && (
-              <>
-                <div
-                  className="bg-white border border-[var(--line)] rounded-[14px] p-2 grid grid-cols-1 gap-1 max-w-[560px] sm:!grid-cols-[1fr_1fr_auto]"
-                  style={{
-                    boxShadow:
-                      "0 10px 30px -12px rgba(15,23,42,0.16), 0 2px 4px rgba(15,23,42,0.04)",
-                  }}
-                >
-                  <SearchField
-                    label="From"
-                    value="Makati, Metro Manila"
-                    dotColor="var(--brand)"
-                  />
-                  <SearchField
-                    label="To"
-                    value="San Fernando, La Union"
-                    dotColor="var(--ink)"
-                  />
-                  <button className="bg-[var(--brand)] text-white border-0 rounded-[10px] py-[14px] px-[18px] font-semibold text-sm flex items-center justify-center gap-1.5 min-h-12 sm:!py-0 sm:!px-[18px] sm:!text-[13px]">
-                    Forecast
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                    >
-                      <path d="M5 12h14M13 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="mt-[14px] flex flex-wrap gap-1.5 items-center min-w-xl">
-                  <span
-                    className="text-[10.5px] text-[var(--ink-5)] mr-1"
-                    style={{ fontFamily: "var(--mono)" }}
-                  >
-                    Popular →
-                  </span>
-                  {POPULAR_ROUTES.map((route) => (
-                    <button key={route} className="chip">
-                      {route}
-                    </button>
-                  ))}
-                </div>
-              </>
+              <RouteSearchCard
+                fromValue={routeFrom}
+                toValue={routeTo}
+                onFromChange={setRouteFrom}
+                onToChange={setRouteTo}
+                onSubmit={handleForecast}
+                onPickRoute={applyPopularRoute}
+                popularRoutes={popularRoutes}
+              />
             )}
 
             {activeTab === "place" && (
-              <div
-                className="bg-white border border-[var(--line)] rounded-[14px] p-2 grid grid-cols-1 gap-1 max-w-[560px] sm:!grid-cols-[1fr_auto]"
-                style={{
-                  boxShadow:
-                    "0 10px 30px -12px rgba(15,23,42,0.16), 0 2px 4px rgba(15,23,42,0.04)",
-                }}
-              >
-                <SearchField
-                  label="Place"
-                  value="e.g. UP Diliman, Tagaytay City"
-                  dotColor="var(--brand)"
-                />
-                <button className="bg-[var(--brand)] text-white border-0 rounded-[10px] py-[14px] px-[18px] font-semibold text-sm flex items-center justify-center gap-1.5 min-h-12 sm:!py-0 sm:!px-[18px] sm:!text-[13px]">
-                  Check Signal
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  >
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                    <circle cx="12" cy="10" r="3" />
-                  </svg>
-                </button>
-              </div>
+              <PlaceSearchCard
+                value={placeQuery}
+                onChange={setPlaceQuery}
+                onSubmit={handlePlaceCheck}
+              />
             )}
 
-            {activeTab === "live" && (
-              <div
-                className="bg-white border border-[var(--line)] rounded-[14px] p-4 max-w-[560px] flex items-center gap-4"
-                style={{
-                  boxShadow:
-                    "0 10px 30px -12px rgba(15,23,42,0.16), 0 2px 4px rgba(15,23,42,0.04)",
-                }}
-              >
-                <div className="w-10 h-10 rounded-full bg-[var(--brand-tint)] flex items-center justify-center flex-shrink-0">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--brand)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
-                    <line x1="9" y1="3" x2="9" y2="18" />
-                    <line x1="15" y1="6" x2="15" y2="21" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-[var(--ink)]">
-                    Live Signal Map
-                  </div>
-                  <div className="text-[12px] text-[var(--ink-4)] mt-0.5">
-                    Real-time coverage visualization is coming soon.
-                  </div>
-                </div>
-                <button
-                  disabled
-                  className="flex-shrink-0 bg-[var(--tint)] text-[var(--ink-5)] border border-[var(--line)] rounded-[10px] py-[10px] px-4 font-semibold text-[13px] cursor-not-allowed"
-                >
-                  Coming Soon
-                </button>
-              </div>
-            )}
+            {activeTab === "live" && <LiveCard />}
           </motion.div>
         </motion.div>
 
@@ -290,10 +240,16 @@ function SearchField({
   label,
   value,
   dotColor,
+  placeholder,
+  onChange,
+  onSubmit,
 }: {
   label: string;
   value: string;
   dotColor: string;
+  placeholder?: string;
+  onChange?: (value: string) => void;
+  onSubmit?: () => void;
 }) {
   return (
     <div className="flex items-center gap-2.5 p-3 rounded-[9px] cursor-text min-h-12 sm:!py-[10px]">
@@ -308,10 +264,187 @@ function SearchField({
         >
           {label}
         </div>
-        <div className="text-[13.5px] font-semibold text-[var(--ink)]">
-          {value}
+        <input
+          value={value}
+          onChange={(event) => onChange?.(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") onSubmit?.();
+          }}
+          placeholder={placeholder}
+          className="w-full bg-transparent text-[13.5px] font-semibold text-[var(--ink)] outline-none"
+        />
+      </div>
+    </div>
+  );
+}
+
+function RouteSearchCard({
+  fromValue,
+  toValue,
+  onFromChange,
+  onToChange,
+  onSubmit,
+  onPickRoute,
+  popularRoutes,
+}: {
+  fromValue: string;
+  toValue: string;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+  onSubmit: () => void;
+  onPickRoute: (route: string) => void;
+  popularRoutes: readonly string[];
+}) {
+  return (
+    <>
+      <div
+        className="bg-white border border-[var(--line)] rounded-[14px] p-2 grid grid-cols-1 gap-1 max-w-[560px] sm:!grid-cols-[1fr_1fr_auto]"
+        style={{
+          boxShadow:
+            "0 10px 30px -12px rgba(15,23,42,0.16), 0 2px 4px rgba(15,23,42,0.04)",
+        }}
+      >
+        <SearchField
+          label="From"
+          value={fromValue}
+          onChange={onFromChange}
+          onSubmit={onSubmit}
+          dotColor="var(--brand)"
+          placeholder="Origin"
+        />
+        <SearchField
+          label="To"
+          value={toValue}
+          onChange={onToChange}
+          onSubmit={onSubmit}
+          dotColor="var(--ink)"
+          placeholder="Destination"
+        />
+        <button
+          onClick={onSubmit}
+          className="bg-[var(--brand)] text-white border-0 rounded-[10px] py-[14px] px-[18px] font-semibold text-sm flex items-center justify-center gap-1.5 min-h-12 sm:!py-0 sm:!px-[18px] sm:!text-[13px]"
+        >
+          Forecast
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          >
+            <path d="M5 12h14M13 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+      <div className="mt-[14px] flex flex-wrap gap-1.5 items-center min-w-xl">
+        <span
+          className="text-[10.5px] text-[var(--ink-5)] mr-1"
+          style={{ fontFamily: "var(--mono)" }}
+        >
+          Popular →
+        </span>
+        {popularRoutes.map((route) => (
+          <button
+            key={route}
+            className="chip"
+            onClick={() => onPickRoute(route)}
+          >
+            {route}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function PlaceSearchCard({
+  value,
+  onChange,
+  onSubmit,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div
+      className="bg-white border border-[var(--line)] rounded-[14px] p-2 grid grid-cols-1 gap-1 max-w-[560px] sm:!grid-cols-[1fr_auto]"
+      style={{
+        boxShadow:
+          "0 10px 30px -12px rgba(15,23,42,0.16), 0 2px 4px rgba(15,23,42,0.04)",
+      }}
+    >
+      <SearchField
+        label="Place"
+        value={value}
+        onChange={onChange}
+        onSubmit={onSubmit}
+        dotColor="var(--brand)"
+        placeholder="e.g. UP Diliman, Tagaytay City"
+      />
+      <button
+        onClick={onSubmit}
+        className="bg-[var(--brand)] text-white border-0 rounded-[10px] py-[14px] px-[18px] font-semibold text-sm flex items-center justify-center gap-1.5 min-h-12 sm:!py-0 sm:!px-[18px] sm:!text-[13px]"
+      >
+        Check Signal
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        >
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+          <circle cx="12" cy="10" r="3" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+function LiveCard() {
+  return (
+    <div
+      className="bg-white border border-[var(--line)] rounded-[14px] p-4 max-w-[560px] flex items-center gap-4"
+      style={{
+        boxShadow:
+          "0 10px 30px -12px rgba(15,23,42,0.16), 0 2px 4px rgba(15,23,42,0.04)",
+      }}
+    >
+      <div className="w-10 h-10 rounded-full bg-[var(--brand-tint)] flex items-center justify-center flex-shrink-0">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="var(--brand)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+          <line x1="9" y1="3" x2="9" y2="18" />
+          <line x1="15" y1="6" x2="15" y2="21" />
+        </svg>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-semibold text-[var(--ink)]">
+          Live Signal Map
+        </div>
+        <div className="text-[12px] text-[var(--ink-4)] mt-0.5">
+          Real-time coverage visualization is coming soon.
         </div>
       </div>
+      <button
+        disabled
+        className="flex-shrink-0 bg-[var(--tint)] text-[var(--ink-5)] border border-[var(--line)] rounded-[10px] py-[10px] px-4 font-semibold text-[13px] cursor-not-allowed"
+      >
+        Coming Soon
+      </button>
     </div>
   );
 }
