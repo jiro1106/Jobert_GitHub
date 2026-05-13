@@ -7,3 +7,4 @@ venv/git rm --cached .env
 .idea/
 *.log
 towers_csv/
+*.gguf

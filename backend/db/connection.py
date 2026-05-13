@@ -1,12 +1,13 @@
 """Database connection layer - prioritizes Supabase, falls back to SQLite"""
 import sqlite3
 from pathlib import Path
-from typing import Any, Iterable, Optional, List
-from config.settings import get_settings
+from typing import Any, Iterable, List, Optional
+
+from ..config.settings import get_settings
 
 # Try to use Supabase if configured, fallback to SQLite
 try:
-    from .supabase_connection import get_supabase_client, SupabaseQuery
+    from .supabase_connection import SupabaseQuery, get_supabase_client
     settings = get_settings()
     USE_SUPABASE = bool(settings.supabase_url and settings.supabase_key)
 except Exception as e:

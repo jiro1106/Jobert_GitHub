@@ -153,31 +153,42 @@ def maybe_log_anomaly(
     scores: dict[str, Any],
     reports: list[dict[str, Any]],
 ) -> bool:
-    # flag weird results: low scores, gaps too small, conflicting reports
-
     provider_scores = list(scores.get("provider_scores", {}).items())
+    weak_segments = scores.get("weak_segments", [])
 
     if not provider_scores:
         return False
 
     best_provider, best_score_payload = provider_scores[0]
-
     best_score = float(best_score_payload.get("score", 0.0))
-    second_score = (
-        float(provider_scores[1][1].get("score", 0.0))
-        if len(provider_scores) > 1
-        else 0.0
-    )
 
-    score_gap = best_score - second_score
-
-    if best_score >= 35 and score_gap >= 10 and not reports:
+    # Do not log anomalies for strong clean results.
+    if best_score >= 70 and not reports and not weak_segments:
         return False
 
-    explanation = "Low confidence analysis result or closely clustered provider scores."
+    # Log report conflict only when reports are actually negative.
+    negative_words = ["poor", "bad", "slow", "unstable", "no signal", "no_signal", "dropped"]
+    has_negative_report = any(
+        any(word in " ".join(str(report.get(field, "")).lower() for field in [
+            "signal_feedback",
+            "speed_feedback",
+            "issue_type",
+            "user_notes",
+        ]) for word in negative_words)
+        for report in reports
+    )
 
-    if reports:
-        explanation = "Nearby crowdsourced reports suggest service quality may be unstable."
+    if reports and has_negative_report:
+        explanation = "Nearby crowdsourced reports suggest service quality may conflict with the computed signal result."
+        anomaly_type = "report_conflict"
+    elif best_score < 35:
+        explanation = "Computed provider score is low-confidence."
+        anomaly_type = "low_confidence"
+    elif weak_segments:
+        explanation = "Weak-signal segments were detected."
+        anomaly_type = "weak_segment_detected"
+    else:
+        return False
 
     insert_anomaly_log(
         {
@@ -186,7 +197,7 @@ def maybe_log_anomaly(
             "provider_name": best_provider,
             "predicted_score": best_score,
             "reported_feedback": reports[0].get("signal_feedback") if reports else None,
-            "anomaly_type": "low_confidence" if not reports else "report_conflict",
+            "anomaly_type": anomaly_type,
             "explanation": explanation,
         }
     )
