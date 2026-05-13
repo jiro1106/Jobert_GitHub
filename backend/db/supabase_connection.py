@@ -177,7 +177,20 @@ def query_towers_near_bbox(
         )
 
         rows = response.data if hasattr(response, "data") and response.data else []
-        all_rows.extend(rows)
+        for row in rows:
+            mcc = row.get("mcc")
+            mnc = row.get("net")
+            provider = "Unknown"
+            if mcc == 515:
+                if mnc in (1, 2, 88):
+                    provider = "Globe"
+                elif mnc in (3, 5, 11):
+                    provider = "Smart"
+                elif mnc == 66:
+                    provider = "DITO"
+
+            row["provider_name"] = provider
+            all_rows.append(row)
 
         if len(rows) < page_size:
             break

@@ -18,9 +18,8 @@ DB_PATH = Path(__file__).resolve().parents[2] / "local_data.db"
 def _is_supabase_available() -> bool:
     """
     Checks if Supabase is available.
-
-    Do not rely only on imported SUPABASE_AVAILABLE because imported booleans
-    can become stale after initialization.
+    Called dynamically on each request — not cached at module level — so
+    a startup network blip doesn't permanently disable Supabase.
     """
     try:
         get_supabase_client()
@@ -29,6 +28,12 @@ def _is_supabase_available() -> bool:
         return False
 
 
+# Lazy check — evaluated each call so startup failures don't permanently disable Supabase
+def _use_supabase() -> bool:
+    return _is_supabase_available()
+
+
+# Keep backward-compat module-level flag (re-evaluated each import refresh)
 USE_SUPABASE = _is_supabase_available()
 
 
@@ -73,7 +78,7 @@ def fetch_all(
     SQLite:
         Uses raw SQL query + params.
     """
-    if USE_SUPABASE:
+    if _use_supabase():
         return SupabaseQuery.query(table, filters or {})
 
     connection = get_connection()
@@ -103,7 +108,7 @@ def fetch_one(
     SQLite:
         Uses raw SQL query + params.
     """
-    if USE_SUPABASE:
+    if _use_supabase():
         normalized_query = query.strip().lower()
 
         if normalized_query.startswith("select count"):
@@ -139,7 +144,7 @@ def execute(
     SQLite:
         Executes raw SQL query + params.
     """
-    if USE_SUPABASE:
+    if _use_supabase():
         if not table or not data:
             return False
 
@@ -177,7 +182,7 @@ def execute_many(
     SQLite:
         Uses raw SQL query + iterable rows.
     """
-    if USE_SUPABASE:
+    if _use_supabase():
         if not table or not data_rows:
             return False
 

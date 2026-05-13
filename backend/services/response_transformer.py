@@ -1,98 +1,184 @@
 """
 Transform raw backend analysis data to frontend-ready response shapes
 """
-from typing import Any
+from __future__ import annotations
+
+import hashlib
 import uuid
 from datetime import datetime
+from typing import Any
+
+
+# Maps real provider keys (as stored in scoring_service) to frontend canonical form
+_PROVIDER_KEY_MAP = {
+    "Globe": "globe",
+    "globe": "globe",
+    "Smart": "smart",
+    "smart": "smart",
+    "DITO": "dito",
+    "dito": "dito",
+    "Dito": "dito",
+}
+
+_PROVIDER_DISPLAY = {
+    "globe": "Globe",
+    "smart": "Smart",
+    "dito": "DITO",
+}
+
+_PROVIDER_FULL_NAME = {
+    "globe": "Globe Telecom Inc.",
+    "smart": "Smart Communications Inc.",
+    "dito": "DITO Telecommunity Inc.",
+}
+
+_PROVIDER_NETWORK = {
+    "globe": "5G",
+    "smart": "4G LTE",
+    "dito": "4G LTE",
+}
+
+
+def _km_from_point_order(route_points: list[dict[str, Any]], point_order: int) -> float:
+    for index, point in enumerate(route_points, start=1):
+        order = int(point.get("point_order", index))
+        if order == point_order:
+            return round(float(point.get("distance_from_origin_m", 0)) / 1000.0, 1)
+    return 0.0
 
 
 def transform_route_analysis_to_forecast(raw_analysis: dict[str, Any]) -> dict[str, Any]:
     """
-    Transform raw route analysis output to RouteForecast shape expected by frontend
+    Transform raw route analysis output to RouteForecast shape expected by frontend.
     
-    Args:
-        raw_analysis: Output from route_service.analyze_route()
-    
-    Returns:
-        RouteForecast-shaped dict with origin, destination, summary, recommendation, gaps, providers
+    Handles capitalized provider keys (Globe, Smart, DITO) from scoring_service.
     """
     route_context = raw_analysis.get("route_context", {})
     provider_scores = raw_analysis.get("provider_scores", {})
     weak_segments = raw_analysis.get("weak_segments", [])
-    route_points = raw_analysis.get("route_points", [])
-    
+    route_points: list[dict[str, Any]] = raw_analysis.get("route_points", [])
+
     # Calculate metrics
     total_distance_km = route_context.get("total_distance_m", 0) / 1000
-    
-    # Estimate driving time (assume ~60 km/h average)
-    driving_time_min = int((total_distance_km / 60) * 60) if total_distance_km > 0 else 0
-    
-    # Calculate strong signal percentage
-    strong_signal_pct = 80.0  # Default, would be calculated from detailed analysis
-    if provider_scores:
-        avg_strong_pct = sum(p.get("strong_signal", 80) for p in provider_scores.values()) / len(provider_scores)
-        strong_signal_pct = round(avg_strong_pct, 1)
-    
-    # Get best provider
-    best_provider = None
-    best_score = 0
-    for provider_name, score_data in provider_scores.items():
-        score = score_data.get("score", 0)
+
+    # Driving time from distance (urban + highway blended ~55 km/h for ETA-style minutes)
+    avg_speed_kmh = 55.0
+    driving_time_min = (
+        max(1, int(round(total_distance_km / avg_speed_kmh * 60))) if total_distance_km > 0 else 0
+    )
+
+    # Build normalized provider data (lowercase keys)
+    normalized_providers: dict[str, dict[str, Any]] = {}
+    for raw_key, score_data in provider_scores.items():
+        canonical = _PROVIDER_KEY_MAP.get(raw_key, raw_key.lower())
+        normalized_providers[canonical] = score_data
+
+    # Best provider
+    best_provider = "globe"
+    best_score = -1.0
+    for canonical, score_data in normalized_providers.items():
+        score = float(score_data.get("score", 0))
         if score > best_score:
             best_score = score
-            best_provider = provider_name
-    
-    best_provider = best_provider or "unknown"
-    best_provider_lower = best_provider.lower()
-    
-    # Map provider name
-    provider_name_map = {
-        "globe": "Globe",
-        "smart": "Smart",
-        "dito": "DITO",
-    }
-    best_provider_display = provider_name_map.get(best_provider_lower, best_provider)
-    
-    # Format gaps
-    gaps = []
-    for gap_idx, gap in enumerate(weak_segments[:5]):  # Limit to 5 gaps
+            best_provider = canonical
+
+    best_provider_display = _PROVIDER_DISPLAY.get(best_provider, best_provider.capitalize())
+
+    # Strong signal pct — use coverage_rate_percent from best provider, averaged across all
+    if normalized_providers:
+        avg_coverage = sum(
+            float(p.get("coverage_rate_percent", p.get("strong_signal", 80)))
+            for p in normalized_providers.values()
+        ) / len(normalized_providers)
+        strong_signal_pct = round(avg_coverage, 1)
+    else:
+        strong_signal_pct = 80.0
+
+    # Format gaps from weak_segments (scoring_service uses signal_score + reason, not signal_level)
+    gaps: list[dict[str, Any]] = []
+    for gap_idx, gap in enumerate(weak_segments[:5]):
+        point_order = int(gap.get("point_order", gap_idx + 1))
+        km = float(gap.get("distance_km")) if gap.get("distance_km") is not None else _km_from_point_order(
+            route_points, point_order
+        )
+        reason = str(gap.get("reason", "") or "")
+        signal_score = gap.get("signal_score")
+        no_tower = gap.get("provider_name") is None and "no nearby tower" in reason.lower()
+        try:
+            score_f = float(signal_score) if signal_score is not None else None
+        except (TypeError, ValueError):
+            score_f = None
+        if no_tower or (score_f is not None and score_f < 12.0):
+            level = "dead"
+        else:
+            level = "patchy"
         gaps.append({
             "id": f"g{gap_idx + 1}",
-            "km": gap.get("distance_km", 0),
-            "level": gap.get("signal_level", "patchy"),
-            "name": gap.get("description", "Weak signal area"),
-            "description": f"Signal gap detected · {gap.get('segment_description', 'coverage issue')}"
+            "km": round(km, 1),
+            "level": level,
+            "name": gap.get("name") or f"Route km {round(km, 1)}",
+            "description": reason or "Tower match is weak along this segment.",
         })
-    
-    # Format providers
+
+    # Format providers list in canonical display order
     providers = []
-    for provider_key in ["globe", "smart", "dito"]:
-        score_data = provider_scores.get(provider_key, {})
+    for canonical in ["globe", "smart", "dito"]:
+        score_data = normalized_providers.get(canonical)
         if not score_data:
             continue
-        
-        score_value = score_data.get("score", 0)
+
+        score_value = round(float(score_data.get("score", 0)), 1)
+        coverage_pct = round(float(score_data.get("coverage_rate_percent", score_data.get("strong_signal", 75))), 1)
+
+        # Estimate avg speed from coverage (no real speed data from towers alone)
+        avg_speed = round(coverage_pct * 0.5, 1)  # rough proxy: 100% coverage ≈ 50 Mbps
+
         providers.append({
-            "provider": provider_key,
-            "name": provider_name_map.get(provider_key, provider_key),
-            "fullName": {
-                "globe": "Globe Telecom Inc.",
-                "smart": "Smart Communications Inc.",
-                "dito": "DITO Telecommunity Inc.",
-            }.get(provider_key, provider_key),
-            "score": round(score_value, 1),
-            "delta": round(score_data.get("delta", 0), 1),
-            "network": score_data.get("network_gen", "4G LTE"),
-            "avgSpeedMbps": round(score_data.get("avg_speed_mbps", 25), 1),
-            "strongSignalPct": round(score_data.get("strong_signal", 75), 1),
-            "confidencePct": round(score_data.get("confidence", 85), 1),
-            # Generate sparkline data
-            "sparklineData": _generate_sparkline(score_value)
+            "provider": canonical,
+            "name": _PROVIDER_DISPLAY.get(canonical, canonical),
+            "fullName": _PROVIDER_FULL_NAME.get(canonical, canonical),
+            "score": score_value,
+            "delta": 0.0,
+            "network": score_data.get("network_gen", _PROVIDER_NETWORK.get(canonical, "4G LTE")),
+            "avgSpeedMbps": avg_speed,
+            "strongSignalPct": coverage_pct,
+            "confidencePct": round(float(score_data.get("confidence", score_data.get("matched_rate_percent", 85))), 1),
+            "sparklineData": _generate_sparkline(score_value, salt=canonical),
         })
-    
+
+    # Always return three providers so the frontend contract is stable
+    present = {p["provider"] for p in providers}
+    for canonical in ["globe", "smart", "dito"]:
+        if canonical in present:
+            continue
+        providers.append({
+            "provider": canonical,
+            "name": _PROVIDER_DISPLAY.get(canonical, canonical),
+            "fullName": _PROVIDER_FULL_NAME.get(canonical, canonical),
+            "score": 20.0,
+            "delta": 0.0,
+            "network": _PROVIDER_NETWORK.get(canonical, "4G LTE"),
+            "avgSpeedMbps": 10.0,
+            "strongSignalPct": 20.0,
+            "confidencePct": 40.0,
+            "sparklineData": _generate_sparkline(20.0, salt=f"{canonical}-fallback"),
+        })
+
     # Sort by score descending
     providers.sort(key=lambda p: p["score"], reverse=True)
-    
+
+    mean_score = (
+        sum(p["score"] for p in providers) / len(providers) if providers else 0.0
+    )
+    for p in providers:
+        p["delta"] = round(float(p["score"]) - mean_score, 1)
+
+    if providers:
+        top = max(providers, key=lambda p: p["score"])
+        best_provider = str(top["provider"])
+        best_provider_display = str(top["name"])
+        best_score = float(top["score"])
+
     return {
         "origin": {
             "label": route_context.get("origin_name", "Origin"),
@@ -108,10 +194,10 @@ def transform_route_analysis_to_forecast(raw_analysis: dict[str, Any]) -> dict[s
             "distanceKm": round(total_distance_km, 1),
             "drivingTimeMin": driving_time_min,
             "strongSignalPct": strong_signal_pct,
-            "deadZoneCount": len([g for g in weak_segments if g.get("signal_level") == "dead"]),
+            "deadZoneCount": len([g for g in gaps if g.get("level") == "dead"]),
         },
         "recommendation": {
-            "provider": best_provider_lower,
+            "provider": best_provider,
             "name": best_provider_display,
             "reason": _generate_recommendation_reason(best_provider_display, gaps),
             "score": round(best_score, 1),
@@ -121,13 +207,14 @@ def transform_route_analysis_to_forecast(raw_analysis: dict[str, Any]) -> dict[s
     }
 
 
-def _generate_sparkline(base_score: float) -> list[float]:
-    """Generate a sparkline array around the base score for visualization"""
-    import random
-    sparkline = []
-    for _ in range(28):
-        variation = random.uniform(-15, 15)
-        value = max(0, min(100, base_score + variation))
+def _generate_sparkline(base_score: float, salt: str = "") -> list[float]:
+    """Deterministic sparkline so the same route/provider always renders the same shape."""
+    digest = hashlib.sha256(f"{salt}:{base_score:.4f}".encode()).digest()
+    sparkline: list[float] = []
+    for i in range(28):
+        b = digest[i % len(digest)]
+        variation = (b / 255.0 - 0.5) * 30.0
+        value = max(0.0, min(100.0, base_score + variation))
         sparkline.append(round(value, 1))
     return sparkline
 
@@ -174,36 +261,57 @@ def calculate_stats_aggregate() -> dict[str, Any]:
 def get_provider_scores_for_route(raw_analysis: dict[str, Any]) -> dict[str, Any]:
     """Extract provider scores from route analysis"""
     provider_scores = raw_analysis.get("provider_scores", {})
-    
+
+    # Normalize keys to lowercase
+    normalized: dict[str, Any] = {}
+    for raw_key, score_data in provider_scores.items():
+        canonical = _PROVIDER_KEY_MAP.get(raw_key, raw_key.lower())
+        normalized[canonical] = score_data
+
     providers = []
-    for provider_key in ["globe", "smart", "dito"]:
-        score_data = provider_scores.get(provider_key, {})
+    for canonical in ["globe", "smart", "dito"]:
+        score_data = normalized.get(canonical)
         if not score_data:
             continue
-        
-        score_value = score_data.get("score", 0)
+
+        score_value = round(float(score_data.get("score", 0)), 1)
+        coverage_pct = round(float(score_data.get("coverage_rate_percent", score_data.get("strong_signal", 75))), 1)
+        avg_speed = round(coverage_pct * 0.5, 1)
+
         providers.append({
-            "provider": provider_key,
-            "name": {
-                "globe": "Globe",
-                "smart": "Smart",
-                "dito": "DITO",
-            }.get(provider_key, provider_key),
-            "fullName": {
-                "globe": "Globe Telecom Inc.",
-                "smart": "Smart Communications Inc.",
-                "dito": "DITO Telecommunity Inc.",
-            }.get(provider_key, provider_key),
-            "score": round(score_value, 1),
-            "delta": round(score_data.get("delta", 0), 1),
-            "network": score_data.get("network_gen", "4G LTE"),
-            "avgSpeedMbps": round(score_data.get("avg_speed_mbps", 25), 1),
-            "strongSignalPct": round(score_data.get("strong_signal", 75), 1),
-            "confidencePct": round(score_data.get("confidence", 85), 1),
-            "sparklineData": _generate_sparkline(score_value)
+            "provider": canonical,
+            "name": _PROVIDER_DISPLAY.get(canonical, canonical),
+            "fullName": _PROVIDER_FULL_NAME.get(canonical, canonical),
+            "score": score_value,
+            "delta": 0.0,
+            "network": score_data.get("network_gen", _PROVIDER_NETWORK.get(canonical, "4G LTE")),
+            "avgSpeedMbps": avg_speed,
+            "strongSignalPct": coverage_pct,
+            "confidencePct": round(float(score_data.get("confidence", score_data.get("matched_rate_percent", 85))), 1),
+            "sparklineData": _generate_sparkline(score_value, salt=canonical),
         })
-    
+
+    present = {p["provider"] for p in providers}
+    for canonical in ["globe", "smart", "dito"]:
+        if canonical in present:
+            continue
+        providers.append({
+            "provider": canonical,
+            "name": _PROVIDER_DISPLAY.get(canonical, canonical),
+            "fullName": _PROVIDER_FULL_NAME.get(canonical, canonical),
+            "score": 20.0,
+            "delta": 0.0,
+            "network": _PROVIDER_NETWORK.get(canonical, "4G LTE"),
+            "avgSpeedMbps": 10.0,
+            "strongSignalPct": 20.0,
+            "confidencePct": 40.0,
+            "sparklineData": _generate_sparkline(20.0, salt=f"{canonical}-fallback-scores"),
+        })
+
     providers.sort(key=lambda p: p["score"], reverse=True)
+    mean_score = sum(p["score"] for p in providers) / len(providers) if providers else 0.0
+    for p in providers:
+        p["delta"] = round(float(p["score"]) - mean_score, 1)
     return {"providers": providers}
 
 

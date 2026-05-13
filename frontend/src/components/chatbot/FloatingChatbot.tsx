@@ -24,19 +24,8 @@ const FloatingChatbot: React.FC = () => {
     {
       id: 1,
       sender: "assistant",
-      text: "Globe has the strongest coverage on this stretch — 82% strong signal vs 74% for Smart.",
-      agent: "Route Analysis Agent",
-    },
-    {
-      id: 2,
-      sender: "user",
-      text: "Which SIM for Baguio trip?",
-    },
-    {
-      id: 3,
-      sender: "assistant",
-      text: "Based on 14,210 community readings along this route, Globe provides the most consistent 4G LTE coverage through rural stretches.",
-      agent: "Crowdsourced Summary Agent",
+      text: "Ask about signal strength, SIM choice, or weak spots. If you name a place (for example Baguio or EDSA), I will use that area for a quick tower-and-report check.",
+      agent: "Signal Assistant",
     },
   ]);
 
@@ -84,7 +73,7 @@ const FloatingChatbot: React.FC = () => {
         id: Date.now() + 1,
         sender: "assistant",
         text: response.message.text,
-        agent: "Route Analysis Agent",
+        agent: response.message.citation ?? "Signal Assistant",
       };
 
       setMessages((prev) => [...prev, assistantMessage]);

@@ -75,6 +75,66 @@ export const SIGNALPH_TOOLS = [
       required: ["latitude", "longitude", "provider_name"],
     },
   },
+  {
+    name: "recommend_sim",
+    description: "Recommend the best SIM/provider based on analysis data.",
+    parameters: {
+      type: "object",
+      properties: {
+        analysis_result: { type: "object" },
+      },
+    },
+  },
+  {
+    name: "explain_coverage",
+    description: "Explain signal coverage quality and evidence.",
+    parameters: {
+      type: "object",
+      properties: {
+        analysis_result: { type: "object" },
+      },
+    },
+  },
+  {
+    name: "summarize_reports",
+    description: "Summarize community reports for an area.",
+    parameters: {
+      type: "object",
+      properties: {
+        analysis_result: { type: "object" },
+      },
+    },
+  },
+  {
+    name: "check_offline_readiness",
+    description: "Check if offline preparation is needed for a route.",
+    parameters: {
+      type: "object",
+      properties: {
+        analysis_result: { type: "object" },
+      },
+    },
+  },
+  {
+    name: "check_anomalies",
+    description: "Check for data anomalies or suspicious coverage results.",
+    parameters: {
+      type: "object",
+      properties: {
+        analysis_result: { type: "object" },
+      },
+    },
+  },
+  {
+    name: "map_towers",
+    description: "Generate map layer data for towers and signal segments.",
+    parameters: {
+      type: "object",
+      properties: {
+        analysis_result: { type: "object" },
+      },
+    },
+  },
 ] as const;
 
 export const ALLOWED_TOOL_NAMES = SIGNALPH_TOOLS.map((tool) => tool.name);

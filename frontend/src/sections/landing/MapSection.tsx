@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MOCK_ROUTE_FORECAST, type RouteForecast } from "../../types/coverage";
 import MapComponent, {
@@ -13,18 +13,27 @@ import { ArrowRight } from "lucide-react";
    Contains: MapCard + RouteSidebar + ForecastChart
    ============================================================ */
 export default function MapSection() {
+  // Start with mock data so the UI is always populated on first load
   const [forecast, setForecast] = useState<RouteForecast>(MOCK_ROUTE_FORECAST);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasLiveData, setHasLiveData] = useState(false);
   const [searchParams] = useSearchParams();
   const fromParam = searchParams.get("from") ?? "";
   const toParam = searchParams.get("to") ?? "";
   const [mapRouteMetrics, setMapRouteMetrics] =
     useState<RouteMetricsFromMap | null>(null);
+  const forecastAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setMapRouteMetrics(null);
   }, [fromParam, toParam]);
+
+  useEffect(() => {
+    return () => {
+      forecastAbortRef.current?.abort();
+    };
+  }, []);
 
   const hasRoute = Boolean(fromParam || toParam);
   const fromLabel = fromParam || "Pick a start";
@@ -38,9 +47,15 @@ export default function MapSection() {
   // Handle route coordinates from map
   const handleRouteCoordinates = async (coords: {originLat: number; originLng: number; originName: string; destLat: number; destLng: number; destName: string} | null) => {
     if (!coords) {
+      forecastAbortRef.current?.abort();
+      forecastAbortRef.current = null;
       setError(null);
       return;
     }
+
+    forecastAbortRef.current?.abort();
+    const ac = new AbortController();
+    forecastAbortRef.current = ac;
 
     try {
       setLoading(true);
@@ -51,12 +66,40 @@ export default function MapSection() {
         coords.originName,
         coords.destLat,
         coords.destLng,
-        coords.destName
+        coords.destName,
+        undefined,
+        { signal: ac.signal }
       );
-      setForecast(result);
+      if (ac.signal.aborted) return;
+      const strongRaw = result?.summary?.strongSignalPct;
+      const strong = typeof strongRaw === "number" ? strongRaw : Number(strongRaw);
+      if (
+        result?.summary &&
+        result.recommendation &&
+        Array.isArray(result.gaps) &&
+        Array.isArray(result.providers) &&
+        Number.isFinite(strong)
+      ) {
+        setForecast({
+          ...result,
+          summary: {
+            ...result.summary,
+            strongSignalPct: strong,
+            deadZoneCount: Number(result.summary.deadZoneCount) || 0,
+            distanceKm: Number(result.summary.distanceKm) || 0,
+            drivingTimeMin: Number(result.summary.drivingTimeMin) || 0,
+          },
+        });
+        setHasLiveData(true);
+      } else {
+        console.warn("API returned unexpected data shape, keeping mock data:", result);
+        setError("Backend returned incomplete data — showing estimated forecast.");
+      }
     } catch (err) {
-      console.error('Error fetching route forecast:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch route forecast');
+      if (err instanceof Error && err.name === "AbortError") return;
+      console.error("Error fetching route forecast:", err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch route forecast — showing estimated forecast.');
+      // Keep the mock/previous forecast as a visual fallback
     } finally {
       setLoading(false);
     }
@@ -79,8 +122,8 @@ export default function MapSection() {
             )}
           </h2>
           <div className="h-sub">
-            Predicted coverage along your route, based on cell-tower density and
-            14,210 community readings.
+            Predicted coverage along your route from registered cell towers and
+            nearby community reports.
           </div>
         </div>
         <div className="block-head-r">
@@ -115,6 +158,7 @@ export default function MapSection() {
           summaryDrivingTimeMin={summaryDrivingTimeMin}
           loading={loading}
           error={error}
+          isLiveData={hasLiveData}
         />
       </div>
 
@@ -188,17 +232,46 @@ function RouteSidebar({
   summaryDrivingTimeMin,
   loading,
   error,
+  isLiveData,
 }: {
   forecast: RouteForecast;
   summaryDistanceKm: number;
   summaryDrivingTimeMin: number;
   loading?: boolean;
   error?: string | null;
+  isLiveData?: boolean;
 }) {
-  const { summary, recommendation, gaps } = forecast;
+  // Null-safety: defend against malformed API responses
+  const summary = forecast?.summary;
+  const recommendation = forecast?.recommendation;
+  const gaps = forecast?.gaps ?? [];
+
+  if (!summary) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div className="panel" style={{ padding: 24, textAlign: "center", color: "var(--ink-4)", fontSize: 13 }}>
+          Select a route on the map to see coverage forecast
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {!isLiveData && !loading && (
+        <div
+          style={{
+            padding: "8px 14px",
+            backgroundColor: "#FFF7ED",
+            border: "1px solid #FED7AA",
+            borderRadius: 8,
+            fontSize: 12,
+            color: "#92400E",
+          }}
+        >
+          📊 Showing estimated data — select a route on the map for live analysis
+        </div>
+      )}
       {error && (
         <div
           style={{

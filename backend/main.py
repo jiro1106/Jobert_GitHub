@@ -293,6 +293,45 @@ async def call_mcp_tool(payload: MCPToolCallRequest):
                 },
             }
 
+        # --- New Agent Tools ---
+
+        if tool_name == "recommend_sim":
+            from .agents.sim_recommender_agent import SimRecommenderAgent
+            agent = SimRecommenderAgent()
+            # Expects analysis_result in arguments
+            result = agent.run(args.get("analysis_result", {}))
+            return {"tool": tool_name, "status": "success", "data": result}
+
+        if tool_name == "explain_coverage":
+            from .agents.coverage_explainer_agent import CoverageExplainerAgent
+            agent = CoverageExplainerAgent()
+            result = agent.run(args.get("analysis_result", {}))
+            return {"tool": tool_name, "status": "success", "data": result}
+
+        if tool_name == "summarize_reports":
+            from .agents.report_summarizer_agent import ReportSummarizerAgent
+            agent = ReportSummarizerAgent()
+            result = agent.run(args.get("analysis_result", {}))
+            return {"tool": tool_name, "status": "success", "data": result}
+
+        if tool_name == "check_offline_readiness":
+            from .agents.offline_readiness_agent import OfflineReadinessAgent
+            agent = OfflineReadinessAgent()
+            result = agent.run(args.get("analysis_result", {}))
+            return {"tool": tool_name, "status": "success", "data": result}
+
+        if tool_name == "check_anomalies":
+            from .agents.anomaly_agent import AnomalyAgent
+            agent = AnomalyAgent()
+            result = agent.run(args.get("analysis_result", {}))
+            return {"tool": tool_name, "status": "success", "data": result}
+
+        if tool_name == "map_towers":
+            from .agents.tower_mapper_agent import TowerMapperAgent
+            agent = TowerMapperAgent()
+            result = agent.run(args.get("analysis_result", {}))
+            return {"tool": tool_name, "status": "success", "data": result}
+
         raise HTTPException(
             status_code=400,
             detail=f"Unknown MCP tool: {tool_name}",

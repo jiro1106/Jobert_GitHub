@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
+import traceback
 
 from ..controllers.signal_controller import signal_controller
 from ..models.schemas import (
@@ -8,12 +9,11 @@ from ..models.schemas import (
     RouteAnalysisRequest,
     ChatRequest,
 )
-from ..services.route_service import analyze_route
+from ..services.route_service import analyze_point, analyze_route
 from ..services.response_transformer import (
     transform_route_analysis_to_forecast,
     calculate_stats_aggregate,
     get_provider_scores_for_route,
-    generate_chat_response,
 )
 from ..utils.helpers import success_response
 
@@ -107,11 +107,10 @@ async def get_route_forecast(request: RouteAnalysisRequest):
             data=forecast,
             message="Route forecast generated successfully"
         )
-    except Exception:
-        return success_response(
-            data={"error": "Internal error"},
-            message="Error generating route forecast"
-        )
+    except Exception as exc:
+        print(f"[route/forecast] ERROR: {exc}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Route forecast failed: {str(exc)}")
 
 
 @router.get("/providers/scores")
@@ -131,12 +130,30 @@ async def get_provider_scores(
         scope: 'route' (entire route), 'origin' (origin only), 'dest' (destination only)
     """
     try:
-        # Analyze the route
-        raw_analysis = analyze_route(
-            origin={"latitude": origin_lat, "longitude": origin_lon, "name": "Origin"},
-            destination={"latitude": dest_lat, "longitude": dest_lon, "name": "Destination"},
-        )
-        
+        scope_norm = (scope or "route").lower()
+        if scope_norm == "origin":
+            raw_analysis = analyze_point(
+                latitude=origin_lat,
+                longitude=origin_lon,
+                radius_km=5.0,
+            )
+        elif scope_norm in ("dest", "destination"):
+            raw_analysis = analyze_point(
+                latitude=dest_lat,
+                longitude=dest_lon,
+                radius_km=5.0,
+            )
+        elif scope_norm in ("route", "this_route"):
+            raw_analysis = analyze_route(
+                origin={"latitude": origin_lat, "longitude": origin_lon, "name": "Origin"},
+                destination={"latitude": dest_lat, "longitude": dest_lon, "name": "Destination"},
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid scope. Use 'route', 'origin', or 'dest'.",
+            )
+
         # Extract provider scores
         provider_data = get_provider_scores_for_route(raw_analysis)
         
@@ -144,11 +161,10 @@ async def get_provider_scores(
             data=provider_data,
             message="Provider scores retrieved successfully"
         )
-    except Exception:
-        return success_response(
-            data={"error": "Internal error"},
-            message="Error retrieving provider scores"
-        )
+    except Exception as exc:
+        print(f"[providers/scores] ERROR: {exc}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Provider scores failed: {str(exc)}")
 
 
 @router.get("/stats")
@@ -165,11 +181,10 @@ async def get_platform_stats():
             data=stats_data,
             message="Platform statistics retrieved successfully"
         )
-    except Exception:
-        return success_response(
-            data={"error": "Internal error"},
-            message="Error retrieving platform statistics"
-        )
+    except Exception as exc:
+        print(f"[stats] ERROR: {exc}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Stats retrieval failed: {str(exc)}")
 
 
 # ============= Chat/Agent Routes =============
@@ -178,24 +193,73 @@ async def post_chat_message(request: ChatRequest):
     """
     Submit a chat message and get AI agent response
     
-    The agent can answer questions about:
-    - Provider coverage recommendations
-    - Route analysis
-    - Signal quality expectations
-    - Dead zones and weak areas
+    The agent uses ChatOrchestrator to run multiple specialist agents:
+    - SIM Recommender
+    - Coverage Explainer
+    - Report Summarizer
+    - Offline Readiness
+    - Anomaly Detector
+    - Tower Mapper
     """
+    from ..agents.chat_orchestrator import ChatOrchestrator
+    import uuid
+
     try:
-        response = generate_chat_response(
-            user_message=request.message,
-            conversation_id=request.context.get("conversation_id") if request.context else None
+        orchestrator = ChatOrchestrator()
+        
+        # Extract context if available
+        context = request.context or {}
+        lat = context.get("latitude")
+        lon = context.get("longitude")
+        radius = context.get("radius_km", 5.0)
+        origin = context.get("origin")
+        destination = context.get("destination")
+        route_points = context.get("route_points")
+        current_analysis = context.get("current_analysis_result")
+        
+        # Run orchestrator
+        agent_response = orchestrator.answer(
+            prompt=request.message,
+            latitude=lat,
+            longitude=lon,
+            radius_km=radius,
+            origin=origin,
+            destination=destination,
+            route_points=route_points,
+            current_analysis_result=current_analysis
         )
         
+        # Map to ChatResponse shape
+        conversation_id = context.get("conversation_id") or str(uuid.uuid4())
+
+        intent_key = str(agent_response.get("intent") or "signal")
+        citation_labels = {
+            "analyze_route": "Route Analysis Agent",
+            "analyze_point": "Route Analysis Agent",
+            "get_recent_reports": "Community Reports Agent",
+            "get_anomalies": "Anomaly Watch Agent",
+            "get_towers": "Tower Mapper Agent",
+            "explain_current_result": "Signal Assistant",
+        }
+        citation = citation_labels.get(intent_key, f"{intent_key.replace('_', ' ').title()} Agent")
+
         return success_response(
-            data=response,
+            data={
+                "message": {
+                    "id": str(uuid.uuid4()),
+                    "role": "bot",
+                    "text": agent_response.get("answer", "Analysis complete."),
+                    "citation": citation,
+                    "agent_outputs": agent_response.get("agent_outputs"),
+                    "analysis_result": agent_response.get("analysis_result"),
+                    "map_layers": agent_response.get("map_layers"),
+                },
+                "conversation_id": conversation_id,
+                "agent_raw": agent_response # Include full response for debugging/rich UI
+            },
             message="Chat response generated successfully"
         )
-    except Exception:
-        return success_response(
-            data={"error": "Internal error"},
-            message="Error generating chat response"
-        )
+    except Exception as exc:
+        print(f"[chat] ERROR: {exc}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Chat response failed: {str(exc)}")

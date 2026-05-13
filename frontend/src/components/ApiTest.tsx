@@ -151,16 +151,21 @@ export default function ApiTestComponent() {
                   <h3 className="font-bold mb-2">Analysis Result</h3>
                   <div className="space-y-1 text-sm">
                     <p>
-                      <strong>Signal Quality:</strong> {(analyzeApi.data as SignalAnalysisResponse).signal_quality}
+                      <strong>Location:</strong>{' '}
+                      {(analyzeApi.data as SignalAnalysisResponse).location_lat.toFixed(4)},{' '}
+                      {(analyzeApi.data as SignalAnalysisResponse).location_lng.toFixed(4)}
                     </p>
                     <p>
-                      <strong>Average Strength:</strong> {(analyzeApi.data as SignalAnalysisResponse).average_signal_strength} dBm
+                      <strong>Composite score:</strong>{' '}
+                      {(analyzeApi.data as SignalAnalysisResponse).signal_score.toFixed(1)}
                     </p>
                     <p>
-                      <strong>Nearby Towers:</strong> {(analyzeApi.data as SignalAnalysisResponse).nearby_towers.length}
+                      <strong>Towers in search area:</strong>{' '}
+                      {(analyzeApi.data as SignalAnalysisResponse).nearby_towers}
                     </p>
                     <p>
-                      <strong>Recent Reports:</strong> {(analyzeApi.data as SignalAnalysisResponse).recent_reports.length}
+                      <strong>Reports in 1 km:</strong>{' '}
+                      {(analyzeApi.data as SignalAnalysisResponse).recent_reports}
                     </p>
                   </div>
                 </div>

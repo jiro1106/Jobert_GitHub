@@ -6,7 +6,7 @@ from typing import Any
 
 import requests
 
-LFM_BASE_URL = os.getenv("LFM_BASE_URL", "http://127.0.0.1:8080/v1")
+LFM_BASE_URL = os.getenv("LFM_BASE_URL", "http://127.0.0.1:8020/v1")
 LFM_MODEL_NAME = os.getenv("LFM_MODEL_NAME", "local-lfm")
 
 

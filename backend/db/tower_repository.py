@@ -25,7 +25,19 @@ def get_towers_in_bbox(
     max_longitude: float,
 ) -> list[dict[str, Any]]:
     """Get towers within a bounding box - uses Supabase or SQLite"""
-    # Connection layer automatically handles Supabase vs SQLite
+    from .connection import _use_supabase
+    from .supabase_connection import query_towers_near_bbox
+
+    # Use the dedicated Supabase bbox function which supports pagination & filtering
+    if _use_supabase():
+        return query_towers_near_bbox(
+            min_latitude=min_latitude,
+            max_latitude=max_latitude,
+            min_longitude=min_longitude,
+            max_longitude=max_longitude,
+        )
+
+    # SQLite path
     query = """
     SELECT
         tower_id,
@@ -50,6 +62,7 @@ def get_towers_in_bbox(
     WHERE latitude BETWEEN ? AND ?
       AND longitude BETWEEN ? AND ?;
     """
+    from .connection import fetch_all
     rows = fetch_all(query, (min_latitude, max_latitude, min_longitude, max_longitude))
     return [row_to_dict(row) for row in rows]
 

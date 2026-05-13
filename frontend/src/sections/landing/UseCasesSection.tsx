@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { MOCK_USE_CASES, MOCK_CHAT_MESSAGES } from "../../types/coverage";
+import { MOCK_USE_CASES } from "../../types/coverage";
 import type { ChatMessage } from "../../types/coverage";
+import { submitChatMessage } from "../../lib/api";
 
 const PROVIDER_COLORS: Record<string, string> = {
   globe: "#1F4FFF",
@@ -14,10 +15,20 @@ const QUICK_PROMPTS = [
   "Globe vs Smart in Cebu?",
 ];
 
+const INITIAL_CHAT: ChatMessage[] = [
+  {
+    id: "welcome",
+    role: "bot",
+    text: "Ask about signal for a place or trip. Replies use your live API (tower matches + community reports), not canned copy.",
+    citation: "Signal Assistant",
+  },
+];
+
 export default function UseCasesSection() {
-  const [messages, setMessages] = useState<ChatMessage[]>(MOCK_CHAT_MESSAGES);
+  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [conversationId, setConversationId] = useState<string | undefined>();
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,7 +36,7 @@ export default function UseCasesSection() {
       bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
   }, [messages, isTyping]);
 
-  function send(text: string) {
+  async function send(text: string) {
     if (!text.trim()) return;
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -35,17 +46,30 @@ export default function UseCasesSection() {
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsTyping(true);
-    /* Simulated bot reply — PLACEHOLDER for real agent response */
-    setTimeout(() => {
-      setIsTyping(false);
+
+    try {
+      const res = await submitChatMessage(text, conversationId);
+      if (res.conversation_id) {
+        setConversationId(res.conversation_id);
+      }
       const botMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+        id: res.message.id,
         role: "bot",
-        text: "Based on 14,210 community readings along this route, Globe provides the most consistent 4G LTE coverage through rural stretches.",
-        citation: "Crowdsourced Summary Agent",
+        text: res.message.text,
+        citation: res.message.citation,
       };
       setMessages((prev) => [...prev, botMsg]);
-    }, 1400);
+    } catch (e) {
+      const errMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "bot",
+        text: `Could not reach the chat API (${e instanceof Error ? e.message : "unknown error"}). Check that the backend is running and VITE_API_URL matches it (for example http://localhost:8001/api).`,
+        citation: "Signal Assistant",
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setIsTyping(false);
+    }
   }
 
   return (
@@ -189,14 +213,14 @@ export default function UseCasesSection() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") send(input);
+                if (e.key === "Enter") void send(input);
               }}
               placeholder="Ask about signal coverage…"
               className="flex-1 border border-[var(--line)] rounded-[9px] py-[9px] px-3 text-[13px] outline-none text-[var(--ink)]"
               style={{ fontFamily: "inherit" }}
             />
             <button
-              onClick={() => send(input)}
+              onClick={() => void send(input)}
               className="bg-[var(--brand)] text-white border-0 rounded-[9px] w-9 h-9 grid place-items-center"
             >
               <svg
