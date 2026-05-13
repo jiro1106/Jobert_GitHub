@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from config.settings import get_settings
+from ..config.settings import get_settings
 
 settings = get_settings()
 

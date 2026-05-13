@@ -1,8 +1,8 @@
-"""Signal PH Backend API - Main Application"""
+"""Signal PH Backend API - Main Application."""
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -12,17 +12,41 @@ from pydantic import BaseModel, Field
 
 from .config.settings import get_settings
 from .middleware.auth import error_handler_middleware
-<<<<<<< HEAD
-from .observability import setup_tracing
-=======
-from .routes.api import router as api_router
->>>>>>> a87032d (merged backend_develop, auth+middle, and nat branch)
+from .services.llm_client import call_lfm_json
 from .services.route_service import analyze_point, analyze_route
 from .utils.helpers import error_response, success_response
-from pydantic import BaseModel, Field
 
 settings = get_settings()
 
+
+# ---------------------------------------------------------------------
+# Optional API router
+# ---------------------------------------------------------------------
+
+try:
+    from .routes.api import router as api_router
+except Exception as error:
+    print(f"Note: routes.api not loaded: {error}")
+    api_router = None
+
+
+# ---------------------------------------------------------------------
+# Optional OpenTelemetry tracing
+# ---------------------------------------------------------------------
+
+class _NoopSpan:
+    def set_attribute(self, *_args, **_kwargs):
+        return None
+
+
+class _NoopTracer:
+    def start_as_current_span(self, *_args, **_kwargs):
+        return nullcontext(_NoopSpan())
+
+
+# ---------------------------------------------------------------------
+# Lifespan
+# ---------------------------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,7 +62,18 @@ app = FastAPI(
 )
 
 
-tracer = setup_tracing(app)
+try:
+    from .observability import setup_tracing
+
+    tracer = setup_tracing(app)
+except Exception as error:
+    print(f"Note: OpenTelemetry tracing not enabled: {error}")
+    tracer = _NoopTracer()
+
+
+# ---------------------------------------------------------------------
+# Middleware
+# ---------------------------------------------------------------------
 
 allowed_origins = [
     "http://localhost:5173",
@@ -62,19 +97,14 @@ app.add_middleware(
 
 app.middleware("http")(error_handler_middleware)
 
-# Include API routes
-app.include_router(api_router, prefix="/api", tags=["signals"])
+if api_router is not None:
+    app.include_router(api_router, prefix="/api", tags=["signals"])
 
-<<<<<<< HEAD
+
 # ---------------------------------------------------------------------
 # Request Models
 # ---------------------------------------------------------------------
 
-
-=======
-
-# ============= Request Models =============
->>>>>>> a87032d (merged backend_develop, auth+middle, and nat branch)
 class PointAnalysisRequest(BaseModel):
     latitude: float
     longitude: float
@@ -94,7 +124,6 @@ class RouteAnalysisRequest(BaseModel):
     radius_km: float = Field(default=5.0, ge=0.1, le=50.0)
 
 
-<<<<<<< HEAD
 class MCPToolCallRequest(BaseModel):
     name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
@@ -104,39 +133,6 @@ class MCPToolCallRequest(BaseModel):
 # Basic API Routes
 # ---------------------------------------------------------------------
 
-
-=======
-# ============= Advanced Analysis Endpoints =============
-@app.post("/analyze/point")
-async def analyze_point_endpoint(payload: PointAnalysisRequest):
-    """Analyze signal quality at a specific point"""
-    result = analyze_point(
-        latitude=payload.latitude,
-        longitude=payload.longitude,
-        radius_km=payload.radius_km,
-    )
-    return success_response(data=result, message="Point analysis complete")
-
-
-@app.post("/analyze/route")
-async def analyze_route_endpoint(payload: RouteAnalysisRequest):
-    """Analyze signal quality along a route"""
-    route_points = (
-        [point.model_dump() for point in payload.route_points]
-        if payload.route_points
-        else None
-    )
-    result = analyze_route(
-        origin=payload.origin.model_dump(),
-        destination=payload.destination.model_dump(),
-        route_points=route_points,
-        radius_km=payload.radius_km,
-    )
-    return success_response(data=result, message="Route analysis complete")
-
-
-# ============= Health Check & Info Endpoints =============
->>>>>>> a87032d (merged backend_develop, auth+middle, and nat branch)
 @app.get("/")
 async def root():
     return success_response(
@@ -169,11 +165,9 @@ async def info():
     )
 
 
-<<<<<<< HEAD
 # ---------------------------------------------------------------------
 # Analysis Routes
 # ---------------------------------------------------------------------
-
 
 @app.post("/analyze/point")
 async def analyze_point_endpoint(payload: PointAnalysisRequest):
@@ -211,12 +205,48 @@ async def analyze_route_endpoint(payload: RouteAnalysisRequest):
 
 
 # ---------------------------------------------------------------------
+# Report Helper
+# ---------------------------------------------------------------------
+
+def _submit_signal_report(args: dict[str, Any]) -> Any:
+    """
+    Submit a signal report using whatever report insert function exists.
+
+    This avoids breaking the app while the repository function name changes.
+    """
+
+    from .db import report_repository
+
+    possible_function_names = [
+        "insert_crowdsourced_report",
+        "insert_report",
+        "create_report",
+        "add_report",
+    ]
+
+    for function_name in possible_function_names:
+        function = getattr(report_repository, function_name, None)
+
+        if function is None:
+            continue
+
+        try:
+            return function(args)
+        except TypeError:
+            return function(**args)
+
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "submit_signal_report is listed as an MCP tool, but no compatible "
+            "insert function was found in db.report_repository."
+        ),
+    )
+
+
+# ---------------------------------------------------------------------
 # MCP HTTP Bridge
 # ---------------------------------------------------------------------
-# Browser-based agents cannot call stdio MCP directly.
-# This endpoint gives the frontend/browser LFM agent a clean HTTP bridge
-# to call your allowed MCP-style backend tools.
-
 
 @app.post("/mcp/tools/call")
 async def call_mcp_tool(payload: MCPToolCallRequest):
@@ -252,30 +282,16 @@ async def call_mcp_tool(payload: MCPToolCallRequest):
             }
 
         if tool_name == "submit_signal_report":
-            # Import here so the app can still start even if the report
-            # repository changes during development.
-            try:
-                from .db.report_repository import insert_crowdsourced_report
+            inserted = _submit_signal_report(args)
 
-                insert_crowdsourced_report(args)
-
-                return {
-                    "tool": tool_name,
-                    "status": "success",
-                    "data": {
-                        "message": "Signal report submitted.",
-                    },
-                }
-
-            except ImportError:
-                raise HTTPException(
-                    status_code=501,
-                    detail=(
-                        "submit_signal_report is listed as an MCP tool, "
-                        "but insert_crowdsourced_report was not found in "
-                        "db.report_repository."
-                    ),
-                )
+            return {
+                "tool": tool_name,
+                "status": "success",
+                "data": {
+                    "message": "Signal report submitted.",
+                    "inserted": inserted,
+                },
+            }
 
         raise HTTPException(
             status_code=400,
@@ -299,36 +315,8 @@ async def call_mcp_tool(payload: MCPToolCallRequest):
 
 
 # ---------------------------------------------------------------------
-# Error Handlers
+# LFM Test Endpoint
 # ---------------------------------------------------------------------
-
-
-=======
-# ============= Exception Handlers =============
->>>>>>> a87032d (merged backend_develop, auth+middle, and nat branch)
-@app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
-    return JSONResponse(
-        status_code=404,
-        content=error_response(
-            message=f"Endpoint {request.url.path} not found",
-            status_code=404,
-        ),
-    )
-
-
-@app.exception_handler(500)
-async def internal_error_handler(request: Request, exc):
-    return JSONResponse(
-        status_code=500,
-        content=error_response(
-            message="Internal server error",
-            status_code=500,
-        ),
-    )
-
-from .services.llm_client import call_lfm_json
-
 
 @app.post("/agent/llm-test")
 async def llm_test(payload: dict[str, Any]):
@@ -362,20 +350,34 @@ async def llm_test(payload: dict[str, Any]):
 
 
 # ---------------------------------------------------------------------
-# Local Run
+# Error Handlers
 # ---------------------------------------------------------------------
 
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        app,
-        host=settings.host,
-        port=settings.port,
-        log_level=settings.log_level.lower(),
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=404,
+        content=error_response(
+            message=f"Endpoint {request.url.path} not found",
+            status_code=404,
+        ),
     )
 
+
+@app.exception_handler(500)
+async def internal_error_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=500,
+        content=error_response(
+            message="Internal server error",
+            status_code=500,
+        ),
+    )
+
+
+# ---------------------------------------------------------------------
+# Local Run
+# ---------------------------------------------------------------------
 
 if __name__ == "__main__":
     import uvicorn
