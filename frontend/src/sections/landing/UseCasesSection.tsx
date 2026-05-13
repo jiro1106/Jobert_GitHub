@@ -53,7 +53,7 @@ export default function UseCasesSection() {
       <div className="block-head">
         <div>
           <div className="eyebrow">03 · Who uses SignalPH</div>
-          <h2 className="h-section mt-[6px]">
+          <h2 className="text-[30px] font-bold tracking-[-0.6px] leading-[1.2]">
             Built for every kind of traveler
           </h2>
           <div className="h-sub">

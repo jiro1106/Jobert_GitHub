@@ -31,7 +31,7 @@ export default function Navbar() {
       {
         rootMargin: "-80px 0px -50% 0px",
         threshold: 0,
-      }
+      },
     );
 
     elements.forEach((el) => observer.observe(el));
@@ -68,10 +68,7 @@ export default function Navbar() {
         className="md:!h-[80px] md:!px-7"
       >
         {/* Logo */}
-        <a
-          href="#"
-          style={{ display: "flex", alignItems: "center", gap: 10 }}
-        >
+        <a href="#" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img
             src={logo}
             alt="SignalPH Logo"
@@ -94,7 +91,10 @@ export default function Navbar() {
               <a
                 key={label}
                 href="#"
-                onClick={(e) => { e.preventDefault(); scrollTo(sectionId); }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollTo(sectionId);
+                }}
                 style={{
                   position: "relative",
                   fontSize: 13,
@@ -176,7 +176,10 @@ export default function Navbar() {
             <a
               key={label}
               href="#"
-              onClick={(e) => { e.preventDefault(); scrollTo(sectionId); }}
+              onClick={(e) => {
+                e.preventDefault();
+                scrollTo(sectionId);
+              }}
               style={{
                 display: "block",
                 padding: "14px 4px",
