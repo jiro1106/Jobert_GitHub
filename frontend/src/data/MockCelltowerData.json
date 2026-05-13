@@ -1,0 +1,90 @@
+[
+	{
+		"id": "g1",
+		"provider": "Globe",
+		"lat": 13.7625,
+		"lng": 121.044,
+		"signal": 0.93,
+		"radiusMeters": 2600
+	},
+	{
+		"id": "g2",
+		"provider": "Globe",
+		"lat": 13.7715,
+		"lng": 121.069,
+		"signal": 0.85,
+		"radiusMeters": 2400
+	},
+	{
+		"id": "g3",
+		"provider": "Globe",
+		"lat": 13.739,
+		"lng": 121.0605,
+		"signal": 0.71,
+		"radiusMeters": 2100
+	},
+	{
+		"id": "g4",
+		"provider": "Globe",
+		"lat": 13.783,
+		"lng": 121.037,
+		"signal": 0.62,
+		"radiusMeters": 1850
+	},
+	{
+		"id": "s1",
+		"provider": "Smart",
+		"lat": 13.7582,
+		"lng": 121.0635,
+		"signal": 0.89,
+		"radiusMeters": 2450
+	},
+	{
+		"id": "s2",
+		"provider": "Smart",
+		"lat": 13.7455,
+		"lng": 121.0488,
+		"signal": 0.74,
+		"radiusMeters": 2150
+	},
+	{
+		"id": "s3",
+		"provider": "Smart",
+		"lat": 13.7795,
+		"lng": 121.0545,
+		"signal": 0.55,
+		"radiusMeters": 1700
+	},
+	{
+		"id": "s4",
+		"provider": "Smart",
+		"lat": 13.7345,
+		"lng": 121.0765,
+		"signal": 0.42,
+		"radiusMeters": 1400
+	},
+	{
+		"id": "d1",
+		"provider": "DITO",
+		"lat": 13.7558,
+		"lng": 121.0515,
+		"signal": 0.8,
+		"radiusMeters": 2200
+	},
+	{
+		"id": "d2",
+		"provider": "DITO",
+		"lat": 13.7662,
+		"lng": 121.0772,
+		"signal": 0.53,
+		"radiusMeters": 1650
+	},
+	{
+		"id": "d3",
+		"provider": "DITO",
+		"lat": 13.7482,
+		"lng": 121.0375,
+		"signal": 0.38,
+		"radiusMeters": 1250
+	}
+]
