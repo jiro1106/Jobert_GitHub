@@ -125,3 +125,77 @@ def build_recommendation(scores: dict[str, Any], analysis_kind: str) -> dict[str
         "recommendation_text": generate_recommendation_text(provider_scores, weak_segments),
         "explanation_text": generate_explanation_text(provider_scores, closest_towers, nearby_reports),
     }
+
+
+def get_signal_recommendations(
+    latitude: float,
+    longitude: float,
+    towers: list[dict[str, Any]],
+    reports: list[dict[str, Any]]
+) -> list[str]:
+    """
+    Generate signal recommendations for a specific location
+    """
+    recommendations = []
+
+    if not towers:
+        recommendations.append("No cell towers found in this area - expect poor signal coverage")
+        recommendations.append("Consider using WiFi or moving to a different location")
+        return recommendations
+
+    # Analyze tower distribution
+    providers = {}
+    for tower in towers:
+        provider = tower.get('provider_name', 'Unknown')
+        if provider not in providers:
+            providers[provider] = []
+        providers[provider].append(tower)
+
+    # Find best provider based on tower count and proximity
+    best_provider = None
+    best_score = 0
+
+    for provider, provider_towers in providers.items():
+        if provider == 'Unknown':
+            continue
+
+        # Score based on number of towers and average distance
+        tower_count = len(provider_towers)
+        avg_distance = sum(t.get('distance_meters', 1000) for t in provider_towers) / tower_count
+
+        score = tower_count * 10 - (avg_distance / 100)  # More towers and closer = better
+
+        if score > best_score:
+            best_score = score
+            best_provider = provider
+
+    if best_provider:
+        recommendations.append(f"{best_provider} appears to have the best coverage in this area")
+
+        # Check for signal issues in reports
+        provider_reports = [r for r in reports if r.get('provider_name') == best_provider]
+        if provider_reports:
+            positive_feedback = sum(1 for r in provider_reports
+                                  if any(word in (r.get('signal_feedback') or '').lower()
+                                        for word in ['good', 'great', 'excellent', 'fast', 'stable']))
+            if positive_feedback / len(provider_reports) > 0.6:
+                recommendations.append(f"Users report good signal quality from {best_provider}")
+            elif any('no signal' in (r.get('issue_type') or '').lower() for r in provider_reports):
+                recommendations.append(f"Some users report no signal from {best_provider} - coverage may be spotty")
+
+    # General recommendations based on tower density
+    towers_per_km = len(towers) / 5.0  # Assuming 5km radius search
+    if towers_per_km < 2:
+        recommendations.append("Low tower density - expect variable signal strength")
+    elif towers_per_km > 10:
+        recommendations.append("High tower density - generally good coverage expected")
+
+    # Check for common issues in area
+    if reports:
+        issue_types = [r.get('issue_type') for r in reports if r.get('issue_type')]
+        if issue_types:
+            most_common_issue = max(set(issue_types), key=issue_types.count)
+            if most_common_issue:
+                recommendations.append(f"Common issue in area: {most_common_issue.replace('_', ' ')}")
+
+    return recommendations[:5]  # Limit to 5 recommendations

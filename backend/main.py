@@ -4,9 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
-from config.settings import get_settings
-from middleware.auth import error_handler_middleware
-from utils.helpers import success_response, error_response
+from backend.config.settings import get_settings
+from backend.middleware.auth import error_handler_middleware
+from backend.utils.helpers import success_response, error_response
 
 # Load settings
 settings = get_settings()
@@ -46,8 +46,8 @@ app.middleware("http")(error_handler_middleware)
 
 
 # Import routes
-# from routes import api
-# app.include_router(api.router, prefix="/api/v1")
+from backend.routes import api
+app.include_router(api.router, prefix="/api/v1")
 
 
 @app.get("/")

@@ -1,7 +1,7 @@
 """Authentication and authorization middleware"""
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
-from utils.helpers import error_response
+from backend.utils.helpers import error_response
 
 
 async def error_handler_middleware(request: Request, call_next):

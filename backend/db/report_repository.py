@@ -94,7 +94,7 @@ def get_reports_in_bbox(
         from .supabase_connection import query_towers_near_bbox
         try:
             from supabase import create_client
-            from config.settings import get_settings
+            from backend.config.settings import get_settings
             settings = get_settings()
             supabase = create_client(settings.supabase_url, settings.supabase_key)
             
@@ -153,7 +153,7 @@ def get_recent_reports(limit: int = 20) -> list[dict[str, Any]]:
     if USE_SUPABASE:
         try:
             from supabase import create_client
-            from config.settings import get_settings
+            from backend.config.settings import get_settings
             settings = get_settings()
             supabase = create_client(settings.supabase_url, settings.supabase_key)
             

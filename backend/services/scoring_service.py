@@ -223,3 +223,41 @@ def calculate_provider_scores(
         "provider_scores": ordered_scores,
         "weak_segments": weak_segments,
     }
+
+
+def calculate_signal_score(towers: list[dict[str, Any]], reports: list[dict[str, Any]]) -> float:
+    """
+    Calculate an overall signal score for a location based on nearby towers and reports
+    """
+    if not towers:
+        return 0.0
+
+    # Base score from tower proximity and signal strength
+    tower_score = 0.0
+    for tower in towers[:10]:  # Consider top 10 closest towers
+        distance = tower.get('distance_meters', 1000)
+        signal_strength = tower.get('average_signal', -70)
+
+        # Distance factor (closer is better)
+        distance_factor = max(0, 1 - (distance / 2000))  # 2km range
+
+        # Signal strength factor (higher dBm is better, -50 is excellent, -100 is poor)
+        signal_factor = max(0, min(1, (signal_strength + 100) / 50))
+
+        tower_score += (distance_factor * 0.6 + signal_factor * 0.4)
+
+    avg_tower_score = (tower_score / min(len(towers), 10)) * 100 if towers else 0
+
+    # Adjust based on user reports
+    report_adjustment = 0.0
+    if reports:
+        for report in reports[-20:]:  # Consider last 20 reports
+            report_score = score_from_report(report)
+            report_adjustment += report_score
+
+        report_adjustment = report_adjustment / len(reports[-20:]) if reports else 0
+
+    # Combine scores (70% tower data, 30% user reports)
+    final_score = (avg_tower_score * 0.7) + (report_adjustment * 0.3)
+
+    return round(max(0.0, min(100.0, final_score)), 2)

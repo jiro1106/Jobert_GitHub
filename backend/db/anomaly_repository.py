@@ -80,7 +80,7 @@ def get_anomalies_in_bbox(
     if USE_SUPABASE:
         try:
             from supabase import create_client
-            from config.settings import get_settings
+            from backend.config.settings import get_settings
             settings = get_settings()
             supabase = create_client(settings.supabase_url, settings.supabase_key)
             
@@ -138,7 +138,7 @@ def get_recent_anomalies(limit: int = 20) -> list[dict[str, Any]]:
     if USE_SUPABASE:
         try:
             from supabase import create_client
-            from config.settings import get_settings
+            from backend.config.settings import get_settings
             settings = get_settings()
             supabase = create_client(settings.supabase_url, settings.supabase_key)
             

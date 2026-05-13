@@ -1,3 +1,4 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -30,7 +31,7 @@ class Settings(BaseSettings):
     port: int = 8000
     
     class Config:
-        env_file = ".env"
+        env_file = str(Path(__file__).resolve().parents[1] / ".env")
         case_sensitive = False
 
 

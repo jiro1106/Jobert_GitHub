@@ -2,7 +2,7 @@
 import sqlite3
 from pathlib import Path
 from typing import Any, Iterable, Optional, List
-from config.settings import get_settings
+from backend.config.settings import get_settings
 
 # Try to use Supabase if configured, fallback to SQLite
 try:
@@ -106,3 +106,14 @@ def execute_many(query: str = "", rows: Iterable[tuple] = None, table: str = "",
         finally:
             cursor.close()
             connection.close()
+
+
+# FastAPI dependency for database sessions
+def get_db():
+    """FastAPI dependency that provides database connection"""
+    db = get_connection()
+    try:
+        yield db
+    finally:
+        if hasattr(db, 'close'):
+            db.close()

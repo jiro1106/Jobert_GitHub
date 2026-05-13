@@ -1,6 +1,6 @@
 import csv
 from pathlib import Path
-from config.settings import get_settings
+from backend.config.settings import get_settings
 
 # Note: You'll need to provide your Supabase ANON_KEY for this to work
 # Get it from: https://jgwifnvnfuquullmxrmi.supabase.co/project/settings/api

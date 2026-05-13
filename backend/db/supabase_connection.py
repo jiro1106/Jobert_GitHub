@@ -1,6 +1,6 @@
 """Supabase database connection using Supabase Python client"""
 from typing import Any, Optional, List
-from config.settings import get_settings
+from backend.config.settings import get_settings
 
 settings = get_settings()
 
