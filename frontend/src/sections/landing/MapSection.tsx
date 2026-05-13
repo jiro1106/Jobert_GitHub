@@ -104,7 +104,7 @@ function RouteSidebar({ forecast }: { forecast: typeof MOCK_ROUTE_FORECAST }) {
             Trip overview
           </div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 36, fontWeight: 600, letterSpacing: '-1.2px', color: 'var(--ink)', lineHeight: 1 }}
-          className="sm:!text-[30px]"
+          className="sm:text-[30px]!"
           >
             {summary.distanceKm}
             <sub style={{ fontSize: 16, color: 'var(--ink-4)', marginLeft: 4 }}>km</sub>

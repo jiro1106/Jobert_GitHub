@@ -3,6 +3,7 @@ import StatusStrip from "../components/StatusStrip";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import MobileStickyBar from "../components/MobileStickyBar";
+import FloatingChatbot from "../components/chatbot/FloatingChatbot";
 
 export default function RootLayout() {
   return (
@@ -12,6 +13,7 @@ export default function RootLayout() {
       <Outlet />
       <Footer />
       <MobileStickyBar />
+      <FloatingChatbot />
     </>
   );
 }
