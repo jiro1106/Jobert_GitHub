@@ -1,41 +1,54 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { MOCK_ROUTE_FORECAST, type ProviderScore } from "../../types/coverage";
+import type { ProviderScore } from "../../types/coverage";
 import { getProviderScores } from "../../lib/api";
+import type { RouteCoords } from "../../pages/LandingPage";
 
 type Scope = "route" | "dest" | "origin";
 
-export default function ProviderScoreboardSection() {
+interface Props {
+  activeRoute: RouteCoords | null;
+}
+
+export default function ProviderScoreboardSection({ activeRoute }: Props) {
   const [activeScope, setActiveScope] = useState<Scope>("route");
-  const [providers, setProviders] = useState(MOCK_ROUTE_FORECAST.providers);
+  const [providers, setProviders] = useState<ProviderScore[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasData, setHasData] = useState(false);
 
   useEffect(() => {
+    if (!activeRoute) {
+      setProviders([]);
+      setHasData(false);
+      return;
+    }
+
     const fetchScores = async () => {
       try {
         setLoading(true);
-        // Use mock coordinates for now - would be passed from MapSection in production
+        setError(null);
         const response = await getProviderScores(
-          14.5995, 120.9842, // Origin: Manila
-          16.6159, 120.3166, // Destination: La Union
+          activeRoute.originLat,
+          activeRoute.originLng,
+          activeRoute.destLat,
+          activeRoute.destLng,
           activeScope
         );
-        if (response && response.providers && response.providers.length > 0) {
+        if (response?.providers?.length > 0) {
           setProviders(response.providers);
-          setError(null);
+          setHasData(true);
         }
       } catch (err) {
-        console.error('Error fetching provider scores:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch scores');
-        // Keep mock data as fallback
+        console.error("Error fetching provider scores:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch scores");
       } finally {
         setLoading(false);
       }
     };
 
     fetchScores();
-  }, [activeScope]);
+  }, [activeRoute, activeScope]);
 
   const scopes: { id: Scope; label: string }[] = [
     { id: "route", label: "This route" },
@@ -43,25 +56,10 @@ export default function ProviderScoreboardSection() {
     { id: "origin", label: "Origin only" },
   ];
 
-  const bestScore = Math.max(...providers.map((p) => p.score));
+  const bestScore = hasData ? Math.max(...providers.map((p) => p.score)) : -1;
 
   return (
     <section id="providers" className="block" data-section="provider-scoreboard">
-      {error && (
-        <div
-          style={{
-            padding: "12px 16px",
-            backgroundColor: "#FEE2E2",
-            border: "1px solid #FCA5A5",
-            color: "#DC2626",
-            fontSize: 13,
-            marginBottom: "16px",
-            borderRadius: 8,
-          }}
-        >
-          {error}
-        </div>
-      )}
       <div className="block-head">
         <div>
           <div className="eyebrow">02 · Provider scorecard</div>
@@ -80,6 +78,7 @@ export default function ProviderScoreboardSection() {
                 key={s.id}
                 className={activeScope === s.id ? "active" : ""}
                 onClick={() => setActiveScope(s.id)}
+                disabled={!hasData}
               >
                 {s.label}
               </button>
@@ -88,21 +87,91 @@ export default function ProviderScoreboardSection() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-[14px] sm:!grid-cols-2 lg:!grid-cols-3">
-        {providers.map((provider, i) => (
-          <motion.div
-            key={provider.provider}
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: i * 0.1, duration: 0.4, ease: "easeOut" }}
-          >
-            <ProviderCard
-              provider={provider}
-              isBest={provider.score === bestScore}
-            />
-          </motion.div>
-        ))}
-      </div>
+      {error && (
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "#FEE2E2",
+            border: "1px solid #FCA5A5",
+            color: "#DC2626",
+            fontSize: 13,
+            marginBottom: 16,
+            borderRadius: 8,
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Empty state — no route selected yet */}
+      {!activeRoute && !loading && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            padding: "56px 24px",
+            border: "1.5px dashed var(--line)",
+            borderRadius: 16,
+            color: "var(--ink-4)",
+            textAlign: "center",
+            background: "var(--surface)",
+          }}
+        >
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13V7m0 13 6-3M9 7l6-3m0 16 5.447-2.724A1 1 0 0 0 21 16.382V5.618a1 1 0 0 0-1.447-.894L15 7m0 13V7" />
+          </svg>
+          <div style={{ fontWeight: 600, fontSize: 15 }}>No route selected</div>
+          <div style={{ fontSize: 13 }}>
+            Select a route on the map above to compare provider scores side-by-side.
+          </div>
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {loading && (
+        <div className="grid grid-cols-1 gap-[14px] sm:!grid-cols-2 lg:!grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              style={{
+                background: "white",
+                border: "1px solid var(--line)",
+                borderRadius: 14,
+                padding: 18,
+                height: 200,
+                animation: "pulse 1.5s ease-in-out infinite",
+              }}
+            >
+              <div style={{ background: "#EEF1F7", borderRadius: 8, height: 20, width: "60%", marginBottom: 12 }} />
+              <div style={{ background: "#EEF1F7", borderRadius: 8, height: 40, width: "40%", marginBottom: 16 }} />
+              <div style={{ background: "#EEF1F7", borderRadius: 8, height: 32, marginBottom: 12 }} />
+              <div style={{ background: "#EEF1F7", borderRadius: 8, height: 16, width: "80%" }} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Live provider cards */}
+      {!loading && hasData && (
+        <div className="grid grid-cols-1 gap-[14px] sm:!grid-cols-2 lg:!grid-cols-3">
+          {providers.map((provider, i) => (
+            <motion.div
+              key={provider.provider}
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.1, duration: 0.4, ease: "easeOut" }}
+            >
+              <ProviderCard
+                provider={provider}
+                isBest={provider.score === bestScore}
+              />
+            </motion.div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -119,9 +188,11 @@ function ProviderCard({
   useEffect(() => {
     const el = sparkRef.current;
     if (!el) return;
-    const max = Math.max(...provider.sparklineData);
+    const data = provider.sparklineData ?? [];
+    if (!data.length) return;
+    const max = Math.max(...data, 1);
     while (el.firstChild) el.removeChild(el.firstChild);
-    provider.sparklineData.forEach((v) => {
+    data.forEach((v) => {
       const s = document.createElement("span");
       const h = Math.max(3, (v / max) * 32);
       s.style.height = h + "px";
@@ -159,7 +230,6 @@ function ProviderCard({
         </div>
       )}
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-[14px]">
         <div className="flex items-center gap-2.5">
           <div className={`prov-tile ${provider.provider}`}>
@@ -175,7 +245,6 @@ function ProviderCard({
         <span className={`net-tag ${networkClass}`}>{provider.network}</span>
       </div>
 
-      {/* Score */}
       <div className="flex items-baseline gap-1.5 mb-[14px]">
         <span
           className="text-[38px] font-semibold tracking-[-1.5px] text-[var(--ink)] leading-none"
@@ -202,13 +271,11 @@ function ProviderCard({
         </span>
       </div>
 
-      {/* Sparkline */}
       <div
         ref={sparkRef}
         className="grid grid-cols-[repeat(28,1fr)] gap-0.5 h-9 items-end mb-[14px]"
       />
 
-      {/* Stats */}
       <div className="grid grid-cols-3 pt-3 border-t border-[var(--line-soft)]">
         <ProvStat value={`${provider.avgSpeedMbps} Mbps`} label="Avg speed" />
         <ProvStat

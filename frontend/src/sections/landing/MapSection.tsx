@@ -1,23 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { MOCK_ROUTE_FORECAST, type RouteForecast } from "../../types/coverage";
+import type { RouteForecast } from "../../types/coverage";
 import MapComponent, {
   type RouteMetricsFromMap,
 } from "../../components/map/MapComponent";
 import type { TravelMode } from "../../types/coverage";
 import { getRouteForecast } from "../../lib/api";
 import { ArrowRight } from "lucide-react";
+import type { RouteCoords } from "../../pages/LandingPage";
 
 /* ============================================================
    MapSection — Route Forecast block
    Contains: MapCard + RouteSidebar + ForecastChart
    ============================================================ */
-export default function MapSection() {
-  // Start with mock data so the UI is always populated on first load
-  const [forecast, setForecast] = useState<RouteForecast>(MOCK_ROUTE_FORECAST);
+interface MapSectionProps {
+  onRouteActive?: (coords: RouteCoords | null) => void;
+}
+
+export default function MapSection({ onRouteActive }: MapSectionProps) {
+  const [forecast, setForecast] = useState<RouteForecast | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasLiveData, setHasLiveData] = useState(false);
   const [searchParams] = useSearchParams();
   const fromParam = searchParams.get("from") ?? "";
   const toParam = searchParams.get("to") ?? "";
@@ -40,9 +43,9 @@ export default function MapSection() {
   const toLabel = toParam || "Pick a destination";
 
   const summaryDistanceKm =
-    mapRouteMetrics?.distanceKm ?? forecast.summary.distanceKm;
+    mapRouteMetrics?.distanceKm ?? forecast?.summary?.distanceKm ?? 0;
   const summaryDrivingTimeMin =
-    mapRouteMetrics?.durationMin ?? forecast.summary.drivingTimeMin;
+    mapRouteMetrics?.durationMin ?? forecast?.summary?.drivingTimeMin ?? 0;
 
   // Handle route coordinates from map
   const handleRouteCoordinates = async (coords: {originLat: number; originLng: number; originName: string; destLat: number; destLng: number; destName: string} | null) => {
@@ -50,12 +53,17 @@ export default function MapSection() {
       forecastAbortRef.current?.abort();
       forecastAbortRef.current = null;
       setError(null);
+      setForecast(null);
+      onRouteActive?.(null);
       return;
     }
 
     forecastAbortRef.current?.abort();
     const ac = new AbortController();
     forecastAbortRef.current = ac;
+
+    // Immediately notify parent so scoreboard starts loading too
+    onRouteActive?.(coords);
 
     try {
       setLoading(true);
@@ -73,7 +81,6 @@ export default function MapSection() {
       if (ac.signal.aborted) return;
       const strongRaw = result?.summary?.strongSignalPct;
       const strong = typeof strongRaw === "number" ? strongRaw : Number(strongRaw);
-      // Be explicit about what fails for debugging
       const hasValidShape =
         result?.summary != null &&
         result?.recommendation != null &&
@@ -94,26 +101,15 @@ export default function MapSection() {
             drivingTimeMin: Number(result.summary.drivingTimeMin) || 0,
           },
         });
-        setHasLiveData(true);
         setError(null);
       } else {
-        console.warn("API shape check failed — fields:", {
-          hasSummary: !!result?.summary,
-          hasRecommendation: !!result?.recommendation,
-          recommendationName: result?.recommendation?.name,
-          gapsIsArray: Array.isArray(result?.gaps),
-          providersIsArray: Array.isArray(result?.providers),
-          providersLength: result?.providers?.length,
-          strong,
-          result,
-        });
-        setError("Backend returned incomplete data — showing estimated forecast.");
+        console.warn("API shape invalid:", result);
+        setError("Backend returned incomplete data. Select a route to retry.");
       }
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
-      console.error("Error fetching route forecast:", err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch route forecast — showing estimated forecast.');
-      // Keep the mock/previous forecast as a visual fallback
+      console.error("Forecast error:", err);
+      setError(err instanceof Error ? err.message : "Failed to fetch forecast.");
     } finally {
       setLoading(false);
     }
@@ -172,11 +168,10 @@ export default function MapSection() {
           summaryDrivingTimeMin={summaryDrivingTimeMin}
           loading={loading}
           error={error}
-          isLiveData={hasLiveData}
         />
       </div>
 
-      <ForecastChart forecast={forecast} />
+      {forecast && <ForecastChart forecast={forecast} />}
     </section>
   );
 }
@@ -246,44 +241,76 @@ function RouteSidebar({
   summaryDrivingTimeMin,
   loading,
   error,
-  isLiveData,
 }: {
-  forecast: RouteForecast;
+  forecast: RouteForecast | null;
   summaryDistanceKm: number;
   summaryDrivingTimeMin: number;
   loading?: boolean;
   error?: string | null;
-  isLiveData?: boolean;
 }) {
-  // Null-safety: defend against malformed API responses
   const summary = forecast?.summary;
   const recommendation = forecast?.recommendation;
   const gaps = forecast?.gaps ?? [];
 
-  if (!summary) {
+  // Empty state — no route selected yet
+  if (!forecast && !loading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-        <div className="panel" style={{ padding: 24, textAlign: "center", color: "var(--ink-4)", fontSize: 13 }}>
-          Select a route on the map to see coverage forecast
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            padding: "48px 24px",
+            border: "1.5px dashed var(--line)",
+            borderRadius: 16,
+            color: "var(--ink-4)",
+            textAlign: "center",
+            background: "var(--surface)",
+          }}
+        >
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <path d="M3 12h18M3 6h18M3 18h18" />
+          </svg>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>Select a route to see the forecast</div>
+          <div style={{ fontSize: 12 }}>Use the search bar on the map to pick an origin and destination.</div>
         </div>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (loading && !forecast) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        {[120, 100, 160].map((h, i) => (
+          <div key={i} className="panel" style={{ height: h, animation: "pulse 1.5s ease-in-out infinite" }}>
+            <div style={{ padding: 18 }}>
+              <div style={{ background: "#EEF1F7", borderRadius: 8, height: 12, width: "50%", marginBottom: 10 }} />
+              <div style={{ background: "#EEF1F7", borderRadius: 8, height: 28, width: "35%" }} />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      {!isLiveData && !loading && (
+      {loading && (
         <div
           style={{
             padding: "8px 14px",
-            backgroundColor: "#FFF7ED",
-            border: "1px solid #FED7AA",
+            backgroundColor: "#EFF6FF",
+            border: "1px solid #BFDBFE",
             borderRadius: 8,
             fontSize: 12,
-            color: "#92400E",
+            color: "#1D4ED8",
           }}
         >
-          📊 Showing estimated data — select a route on the map for live analysis
+          ⏳ Analysing route signal coverage…
         </div>
       )}
       {error && (
@@ -347,11 +374,11 @@ function RouteSidebar({
             label="Est. drive time"
           />
           <TripMetric
-            value={`${summary.strongSignalPct}%`}
+            value={`${summary?.strongSignalPct ?? 0}%`}
             label="Strong signal"
           />
           <TripMetric
-            value={String(summary.deadZoneCount)}
+            value={String(summary?.deadZoneCount ?? 0)}
             label="Dead zones"
             color="var(--bad)"
           />
@@ -389,14 +416,14 @@ function RouteSidebar({
               flexShrink: 0,
             }}
           >
-            {recommendation.name[0]}
+            {recommendation?.name?.[0] ?? "?"}
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>
-              {recommendation.name}
+              {recommendation?.name ?? "Unknown"}
             </div>
             <div style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 2 }}>
-              {recommendation.reason}
+              {recommendation?.reason}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -408,7 +435,7 @@ function RouteSidebar({
                 color: "var(--ok)",
               }}
             >
-              {recommendation.score}
+              {recommendation?.score ?? 0}
             </div>
             <div
               style={{
@@ -492,7 +519,7 @@ function RouteSidebar({
   );
 }
 
-/* ---- Forecast Chart ---- */
+/* ---- Forecast Chart — real data-driven ---- */
 function ForecastChart({ forecast }: { forecast: RouteForecast }) {
   const [activeProviders, setActiveProviders] = useState(new Set(["globe"]));
 
@@ -505,20 +532,64 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
     });
   }
 
-  const providers = [
-    { id: "globe", label: "Globe", color: "#1F4FFF" },
-    { id: "smart", label: "Smart", color: "#E11D48" },
-    { id: "dito", label: "DITO", color: "#4F46E5" },
-  ];
+  const CHART_W = 900;
+  const CHART_H = 200;
+  const PAD_LEFT = 24;
+  const PAD_RIGHT = 10;
+  const PAD_TOP = 10;
+  const PAD_BOT = 10;
+  const innerW = CHART_W - PAD_LEFT - PAD_RIGHT;
+  const innerH = CHART_H - PAD_TOP - PAD_BOT;
 
-  const axis = [
-    { km: "0 km", place: "Manila" },
-    { km: "50 km", place: "Tarlac" },
-    { km: "78 km", place: "Gap", highlight: true },
-    { km: "120 km", place: "Dagupan" },
-    { km: "160 km", place: "Aringay" },
-    { km: "214 km", place: "La Union", bold: true },
-  ];
+  const providerMeta: Record<string, { color: string; label: string; dash?: string }> = {
+    globe: { color: "#1F4FFF", label: "Globe" },
+    smart: { color: "#E11D48", label: "Smart" },
+    dito:  { color: "#4F46E5", label: "DITO", dash: "4 4" },
+  };
+
+  // Build polyline path from sparkline data (0-100 → SVG Y coords)
+  function sparkToPath(data: number[]): string {
+    if (!data?.length) return "";
+    const n = data.length;
+    return data
+      .map((v, i) => {
+        const x = PAD_LEFT + (i / (n - 1)) * innerW;
+        const y = PAD_TOP + innerH - (Math.max(0, Math.min(100, v)) / 100) * innerH;
+        return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+      })
+      .join(" ");
+  }
+
+  // Build fill path (close to bottom)
+  function sparkToFill(data: number[]): string {
+    if (!data?.length) return "";
+    const n = data.length;
+    const line = data
+      .map((v, i) => {
+        const x = PAD_LEFT + (i / (n - 1)) * innerW;
+        const y = PAD_TOP + innerH - (Math.max(0, Math.min(100, v)) / 100) * innerH;
+        return `${x.toFixed(1)} ${y.toFixed(1)}`;
+      })
+      .join(" L ");
+    const lastX = (PAD_LEFT + innerW).toFixed(1);
+    const firstX = PAD_LEFT.toFixed(1);
+    const botY = (PAD_TOP + innerH).toFixed(1);
+    return `M ${line.split(" L ")[0]} L ${line.split(" L ").slice(1).join(" L ")} L ${lastX} ${botY} L ${firstX} ${botY} Z`;
+  }
+
+  // Axis labels based on route distance
+  const distKm = forecast.summary?.distanceKm ?? 0;
+  const axisPoints = distKm > 0
+    ? [0, 0.25, 0.5, 0.75, 1].map(f => ({
+        km: Math.round(f * distKm),
+        x: PAD_LEFT + f * innerW,
+      }))
+    : [];
+
+  const origin = forecast.origin?.label ?? "Origin";
+  const destination = forecast.destination?.label ?? "Destination";
+
+  const gridYs = [25, 50, 75];
 
   return (
     <div
@@ -542,176 +613,99 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
         className="sm:!flex-row sm:!items-center sm:!p-[14px_18px]"
       >
         <div>
-          <div className="panel-title">
-            Predicted signal strength along route
-          </div>
+          <div className="panel-title">Predicted signal strength along route</div>
           <div className="h-sub" style={{ fontSize: 12, marginTop: 2 }}>
-            Solid line = ML forecast · dotted = community-verified
+            Based on live tower data · toggle providers below
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {providers.map((p) => (
-            <button
-              key={p.id}
-              className={`prov-toggle ${activeProviders.has(p.id) ? "active" : ""}`}
-              onClick={() => toggleProvider(p.id)}
-            >
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: activeProviders.has(p.id) ? "white" : p.color,
-                }}
-              />
-              {p.label}
-            </button>
-          ))}
+          {forecast.providers?.map((p) => {
+            const meta = providerMeta[p.provider];
+            if (!meta) return null;
+            return (
+              <button
+                key={p.provider}
+                className={`prov-toggle ${activeProviders.has(p.provider) ? "active" : ""}`}
+                onClick={() => toggleProvider(p.provider)}
+              >
+                <span
+                  style={{
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: activeProviders.has(p.provider) ? "white" : meta.color,
+                  }}
+                />
+                {p.name}
+              </button>
+            );
+          })}
         </div>
       </div>
+
       <div
-        style={{
-          padding: "14px 14px 18px",
-          overflowX: "auto",
-          WebkitOverflowScrolling: "touch",
-        }}
+        style={{ padding: "14px 14px 18px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}
         className="md:!py-[18px] md:!px-6 md:!overflow-x-visible"
       >
         <svg
-          viewBox="0 0 900 200"
+          viewBox={`0 0 ${CHART_W} ${CHART_H}`}
           preserveAspectRatio="none"
-          style={{
-            width: "100%",
-            minWidth: 520,
-            height: 180,
-            display: "block",
-          }}
+          style={{ width: "100%", minWidth: 520, height: 180, display: "block" }}
           className="md:!min-w-0 md:!h-[200px]"
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
-            <linearGradient id="fillGlobe" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#1F4FFF" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#1F4FFF" stopOpacity="0" />
-            </linearGradient>
+            {forecast.providers?.map((p) => (
+              <linearGradient key={p.provider} id={`fill-${p.provider}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={providerMeta[p.provider]?.color ?? "#999"} stopOpacity="0.16" />
+                <stop offset="100%" stopColor={providerMeta[p.provider]?.color ?? "#999"} stopOpacity="0" />
+              </linearGradient>
+            ))}
           </defs>
-          {/* Grid */}
+
+          {/* Grid lines */}
           <g stroke="#EEF1F7" strokeWidth="1">
-            {[40, 80, 120, 160].map((y) => (
-              <line key={y} x1="0" y1={y} x2="900" y2={y} />
-            ))}
+            {gridYs.map((pct) => {
+              const y = PAD_TOP + innerH - (pct / 100) * innerH;
+              return <line key={pct} x1={PAD_LEFT} y1={y} x2={CHART_W - PAD_RIGHT} y2={y} />;
+            })}
           </g>
-          {/* Labels */}
+
+          {/* Y-axis labels */}
           <g fontFamily="JetBrains Mono" fontSize="9" fill="#94A3B8">
-            {[
-              ["100", 36],
-              ["75", 76],
-              ["50", 116],
-              ["25", 156],
-            ].map(([v, y]) => (
-              <text key={v} x="6" y={y}>
-                {v}
-              </text>
-            ))}
+            {gridYs.map((pct) => {
+              const y = PAD_TOP + innerH - (pct / 100) * innerH + 3;
+              return <text key={pct} x="2" y={y}>{pct}</text>;
+            })}
           </g>
-          {/* Dead zone bands */}
-          <rect
-            x="305"
-            y="0"
-            width="50"
-            height="200"
-            fill="#D03737"
-            opacity="0.06"
-          />
-          <rect
-            x="555"
-            y="0"
-            width="40"
-            height="200"
-            fill="#C77700"
-            opacity="0.06"
-          />
-          <rect
-            x="755"
-            y="0"
-            width="32"
-            height="200"
-            fill="#C77700"
-            opacity="0.06"
-          />
-          {/* Smart line */}
-          {activeProviders.has("smart") && (
-            <path
-              d="M 30 60 L 90 50 L 150 65 L 210 80 L 270 95 L 330 140 L 380 100 L 440 90 L 500 75 L 560 130 L 610 110 L 670 90 L 730 80 L 780 105 L 830 85 L 870 75"
-              fill="none"
-              stroke="#E11D48"
-              strokeWidth="2"
-              opacity="0.55"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          )}
-          {/* DITO line */}
-          {activeProviders.has("dito") && (
-            <path
-              d="M 30 90 L 90 95 L 150 110 L 210 130 L 270 145 L 330 175 L 380 150 L 440 140 L 500 135 L 560 165 L 610 150 L 670 130 L 730 125 L 780 145 L 830 130 L 870 120"
-              fill="none"
-              stroke="#4F46E5"
-              strokeWidth="2"
-              opacity="0.45"
-              strokeDasharray="4 4"
-              strokeLinejoin="round"
-            />
-          )}
-          {/* Globe fill + line */}
-          {activeProviders.has("globe") && (
-            <>
-              <path
-                d="M 30 45 L 90 40 L 150 50 L 210 60 L 270 70 L 330 130 L 380 75 L 440 60 L 500 50 L 560 110 L 610 80 L 670 60 L 730 55 L 780 90 L 830 60 L 870 50 L 870 200 L 30 200 Z"
-                fill="url(#fillGlobe)"
-              />
-              <path
-                d="M 30 45 L 90 40 L 150 50 L 210 60 L 270 70 L 330 130 L 380 75 L 440 60 L 500 50 L 560 110 L 610 80 L 670 60 L 730 55 L 780 90 L 830 60 L 870 50"
-                fill="none"
-                stroke="#1F4FFF"
-                strokeWidth="2.8"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-              <line
-                x1="380"
-                y1="0"
-                x2="380"
-                y2="200"
-                stroke="#0B1220"
-                strokeWidth="1"
-                strokeDasharray="3 3"
-                opacity="0.4"
-              />
-              <circle
-                cx="380"
-                cy="75"
-                r="5"
-                fill="#1F4FFF"
-                stroke="white"
-                strokeWidth="2"
-              />
-              <text
-                x="380"
-                y="20"
-                textAnchor="middle"
-                fontFamily="JetBrains Mono"
-                fontSize="9"
-                fill="#475569"
-                fontWeight="600"
-              >
-                82 / 100
-              </text>
-            </>
-          )}
+
+          {/* Provider lines */}
+          {forecast.providers?.map((p) => {
+            if (!activeProviders.has(p.provider)) return null;
+            const meta = providerMeta[p.provider];
+            if (!meta || !p.sparklineData?.length) return null;
+            const linePath = sparkToPath(p.sparklineData);
+            const fillPath = sparkToFill(p.sparklineData);
+            const isBest = p.provider === forecast.providers[0]?.provider;
+            return (
+              <g key={p.provider}>
+                {isBest && (
+                  <path d={fillPath} fill={`url(#fill-${p.provider})`} />
+                )}
+                <path
+                  d={linePath}
+                  fill="none"
+                  stroke={meta.color}
+                  strokeWidth={isBest ? "2.8" : "2"}
+                  strokeDasharray={meta.dash}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  opacity={isBest ? 1 : 0.6}
+                />
+              </g>
+            );
+          })}
         </svg>
 
-        {/* Axis labels */}
+        {/* X-axis */}
         <div
           style={{
             display: "flex",
@@ -725,26 +719,10 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
           }}
           className="md:!text-[10px] md:!min-w-0"
         >
-          {axis.map((a) => (
-            <div
-              key={a.km}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-              }}
-            >
-              <b
-                style={{
-                  color: a.highlight ? "#D03737" : "var(--ink)",
-                  fontWeight: 600,
-                  fontSize: 11,
-                }}
-              >
-                {a.km}
-              </b>
-              <span>{a.place}</span>
+          {axisPoints.map((a, i) => (
+            <div key={a.km} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <b style={{ fontWeight: 600, fontSize: 11, color: "var(--ink)" }}>{a.km} km</b>
+              <span>{i === 0 ? origin.split(",")[0] : i === axisPoints.length - 1 ? destination.split(",")[0] : ""}</span>
             </div>
           ))}
         </div>
@@ -753,7 +731,9 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
   );
 }
 
-/* ---- Small helper components ---- */
+
+
+
 function TripMetric({
   value,
   label,

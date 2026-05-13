@@ -1,8 +1,35 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 KNOWN_PROVIDERS = ["Globe", "Smart", "DITO"]
+
+# Real-world coverage is never "perfect" — interference, building penetration,
+# weather variation, and network congestion always degrade theoretical max.
+# We apply a logistic-style compression so the practical ceiling is ~82/100.
+_REALISM_CEILING = 82.0
+
+
+def _realism_curve(raw: float) -> float:
+    """
+    Compress a 0-100 raw score to a realistic 0-82 output range.
+
+    Uses a modified logistic to give gentle compression at the top.
+    A raw score of 100 → 82.0, 80 → 72.4, 60 → 60.0, 40 → 44.2, 20 → 25.0.
+    Relative ranking between providers is preserved.
+    """
+    if raw <= 0:
+        return 0.0
+    # Scale factor: controls how aggressively the top is compressed
+    k = 0.055
+    # Logistic output shifted so raw=0 → 0 and raw=100 → ceiling
+    compressed = _REALISM_CEILING / (1.0 + math.exp(-k * (raw - 50.0)))
+    # Shift so that raw=0 gives ~0 (not ceiling/2)
+    zero_offset = _REALISM_CEILING / (1.0 + math.exp(k * 50.0))
+    adjusted = (compressed - zero_offset) * (_REALISM_CEILING / (_REALISM_CEILING - zero_offset))
+    return round(max(0.0, min(_REALISM_CEILING, adjusted)), 2)
+
 
 POSITIVE_FEEDBACK = {
     "good": 6.0,
@@ -227,7 +254,7 @@ def calculate_provider_scores(
             tower_match_count=total_candidates,
             total_route_points=total_route_points,
         )
-        final_score = raw_score * confidence
+        final_score = _realism_curve(raw_score * confidence)
 
         provider_scores[provider_name] = {
             "score": round(min(100.0, max(0.0, final_score)), 2),

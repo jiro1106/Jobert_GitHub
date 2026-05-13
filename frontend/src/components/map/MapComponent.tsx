@@ -265,7 +265,22 @@ const MapComponent: React.FC<Props> = ({
     return tower.signal <= 0.45;
   };
 
-  const filteredTowers = MOCK_TOWERS.filter(
+  // Prefer live API towers; fall back to empty array (no misleading mock pins)
+  const baseTowers: Tower[] = liveTowers.length > 0
+    ? liveTowers.map(t => ({
+        id: t.id,
+        provider: (t.provider as Exclude<Provider, 'All'>) in PROVIDER_COLORS
+          ? (t.provider as Exclude<Provider, 'All'>)
+          : 'Globe' as const,
+        position: { lat: t.lat, lng: t.lng },
+        signal: typeof t.signal_strength === 'number'
+          ? Math.min(1, Math.max(0, t.signal_strength / 100))
+          : 0.5,
+        radiusMeters: 500,
+      }))
+    : [];
+
+  const filteredTowers = baseTowers.filter(
     (tower) => (selectedProvider === 'All' || tower.provider === selectedProvider)
       && matchesSignalRange(tower)
   );
