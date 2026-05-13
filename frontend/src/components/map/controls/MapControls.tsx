@@ -60,7 +60,7 @@ const MapControls: React.FC<Props> = ({
                         <button
                             key={type}
                             onClick={() => onMapTypeChange(type)}
-                            className={`cursor-pointer block w-full text-left px-3 py-1.5 text-xs font-medium transition-colors ${
+                            className={`cursor-pointer w-full text-left px-3 py-1.5 text-xs font-medium transition-colors ${
                                 mapType === type
                                     ? "bg-[#2B67EB] text-white"
                                     : "text-gray-600 hover:bg-gray-50"

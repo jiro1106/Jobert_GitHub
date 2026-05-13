@@ -1,1 +1,443 @@
 @import "tailwindcss";
+
+/* ============================================================
+   DESIGN TOKENS — ported from SignalPH v2.html
+   ============================================================ */
+:root {
+  --ink: #0b1220;
+  --ink-2: #1f2a3d;
+  --ink-3: #475569;
+  --ink-4: #64748b;
+  --ink-5: #94a3b8;
+  --line: #e5e9f2;
+  --line-soft: #eef1f7;
+  --bg: #fafbfd;
+  --paper: #ffffff;
+  --tint: #f5f7fc;
+  --brand: #1f4fff;
+  --brand-ink: #0e2e9c;
+  --brand-tint: #eef2ff;
+  --brand-mid: #c7d2fe;
+  --ok: #14a06a;
+  --ok-tint: #dff7eb;
+  --warn: #c77700;
+  --warn-tint: #fcefd3;
+  --bad: #d03737;
+  --bad-tint: #fbe3e3;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 22px;
+  --mono: "Plus Jakarta Sans", system-ui, sans-serif;
+  --sans: "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
+/* ============================================================
+   BASE RESET
+   ============================================================ */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+}
+
+/* ============================================================
+   DESIGN SYSTEM CLASSES
+   ============================================================ */
+
+/* --- Typography helpers --- */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.h-section {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--ink);
+}
+.h-sub {
+  font-size: 14px;
+  color: var(--ink-4);
+  margin-top: 4px;
+}
+.mono {
+  font-family: var(--mono);
+}
+.num {
+  font-family: var(--mono);
+  font-feature-settings: "tnum" 1;
+}
+
+/* --- Buttons --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    transform 0.1s;
+}
+.btn:hover {
+  background: var(--tint);
+}
+.btn-primary {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+.btn-primary:hover {
+  background: var(--ink-2);
+}
+.btn-brand {
+  background: var(--brand);
+  color: white;
+  border-color: var(--brand);
+}
+.btn-brand:hover {
+  background: var(--brand-ink);
+}
+
+/* --- Live dot --- */
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(74, 222, 128, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
+  }
+}
+.live-dot.blue {
+  background: var(--brand);
+  animation: pulse-blue 2s infinite;
+}
+@keyframes pulse-blue {
+  0% {
+    box-shadow: 0 0 0 0 rgba(31, 79, 255, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(31, 79, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(31, 79, 255, 0);
+  }
+}
+
+/* --- Chip --- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.chip:hover {
+  border-color: var(--brand-mid);
+  color: var(--brand-ink);
+}
+
+/* --- Panel --- */
+.panel {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+.panel-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-title .badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--brand);
+  background: var(--brand-tint);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.panel-body {
+  padding: 18px;
+}
+
+/* --- Segmented control --- */
+.seg {
+  display: inline-flex;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px;
+}
+.seg button {
+  border: 0;
+  background: transparent;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-4);
+  border-radius: 6px;
+}
+.seg button.active {
+  background: var(--ink);
+  color: white;
+}
+
+/* --- Net tag --- */
+.net-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: var(--brand-tint);
+  color: var(--brand-ink);
+  letter-spacing: 0.04em;
+}
+.net-tag.g5 {
+  background: #f3e8ff;
+  color: #6d28d9;
+}
+.net-tag.g4 {
+  background: var(--brand-tint);
+  color: var(--brand-ink);
+}
+.net-tag.g3 {
+  background: var(--warn-tint);
+  color: var(--warn);
+}
+
+/* --- Logo mark --- */
+.logo-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--ink);
+  display: grid;
+  place-items: center;
+  position: relative;
+  flex-shrink: 0;
+}
+.logo-mark::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 1.5px solid white;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+}
+.logo-mark::after {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: white;
+}
+
+/* --- Map icon button --- */
+.map-iconbtn {
+  width: 30px;
+  height: 30px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink-3);
+  display: grid;
+  place-items: center;
+}
+.map-iconbtn:hover {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+/* --- Provider toggle --- */
+.prov-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: white;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.prov-toggle.active {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+
+/* --- Provider tile --- */
+.prov-tile {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  color: white;
+  font-weight: 800;
+  font-size: 13px;
+  display: grid;
+  place-items: center;
+  letter-spacing: -0.4px;
+}
+.prov-tile.globe {
+  background: linear-gradient(135deg, #1e3a8a, #1f4fff);
+}
+.prov-tile.smart {
+  background: linear-gradient(135deg, #9f1239, #e11d48);
+}
+.prov-tile.dito {
+  background: linear-gradient(135deg, #1e1b4b, #4f46e5);
+}
+
+/* --- Gap icon --- */
+.gap-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: var(--bad-tint);
+  color: var(--bad);
+  flex-shrink: 0;
+}
+.gap-icon.warn {
+  background: var(--warn-tint);
+  color: var(--warn);
+}
+
+/* --- AI typing animation --- */
+@keyframes bounce {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* --- Page grid --- */
+.page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 16px 80px;
+}
+@media (min-width: 768px) {
+  .page {
+    padding: 32px 28px 64px;
+  }
+}
+
+/* --- Section block --- */
+.block {
+  margin-top: 36px;
+}
+@media (min-width: 768px) {
+  .block {
+    margin-top: 48px;
+  }
+}
+.block-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 14px;
+}
+@media (min-width: 768px) {
+  .block-head {
+    flex-direction: row;
+    align-items: flex-end;
+    margin-bottom: 18px;
+    gap: 16px;
+  }
+}
+.block-head-r {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* --- Mobile sticky bar body padding --- */
+body.has-sticky {
+  padding-bottom: 72px;
+}
+@media (min-width: 768px) {
+  body.has-sticky {
+    padding-bottom: 0;
+  }
+}

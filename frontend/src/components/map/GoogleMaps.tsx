@@ -7,7 +7,6 @@ import ProviderFilters from './controls/ProviderFilters';
 import type { Provider, SignalRange, Tower } from './types';
 import { PROVIDER_COLORS, PROVIDER_FILTER_STYLES } from './ui/providerColors';
 import towerData from '../../data/MockCelltowerData.json';
-import SignalLegend from './ui/SignalLegend';
 import SignalHeatmap from './SignalHeatmap';
 import MapSearch from './search/MapSearch';
 
@@ -194,7 +193,6 @@ const GoogleMaps: React.FC<Props> = ({ onLocationChange }) => {
         }`}
       >
       {/* ── Signal Legend ────────────────────────────────────────────────── */}
-        <SignalLegend />
         <MapSearch map={mapRef} />
       {/* ── Top-right controls ───────────────────────────────────────────── */}
       <MapControls
@@ -275,14 +273,6 @@ const GoogleMaps: React.FC<Props> = ({ onLocationChange }) => {
         providerStyles={PROVIDER_FILTER_STYLES}
         signalStyles={SIGNAL_FILTER_STYLES}
       />
-
-      {/* ── Tower count badge ─────────────────────────────────────────────── */}
-      {showLayers && (
-        <div className="absolute bottom-4 right-3 z-10 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg shadow-sm border border-gray-100 flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
-          <RadioTower size={11} className="text-gray-400" />
-          {filteredTowers.length} tower{filteredTowers.length !== 1 ? 's' : ''}
-        </div>
-      )}
       </div>
     </div>
   );

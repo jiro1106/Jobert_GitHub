@@ -259,8 +259,8 @@ const MapSearch: React.FC<Props> = ({ map }) => {
   };
 
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 w-125">
-  <div className="flex items-center bg-white rounded-xl shadow-xl border border-gray-100 p-1 gap-2">
+    <div className="absolute top-3 left-3 z-50 w-125">
+  <div className="flex items-center bg-white rounded-xl shadow-xl border border-gray-100 py-1 px-1.5 gap-2">
 
     {/* FROM */}
     <div className="flex items-center flex-1 gap-2">
