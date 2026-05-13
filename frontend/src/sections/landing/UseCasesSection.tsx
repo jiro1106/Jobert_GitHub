@@ -49,7 +49,7 @@ export default function UseCasesSection() {
   }
 
   return (
-    <section className="block" data-section="use-cases">
+    <section id="use-cases" className="block" data-section="use-cases">
       <div className="block-head">
         <div>
           <div className="eyebrow">03 · Who uses SignalPH</div>

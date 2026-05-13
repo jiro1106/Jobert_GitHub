@@ -11,7 +11,7 @@ export default function MapSection() {
   const forecast = MOCK_ROUTE_FORECAST;
 
   return (
-    <section className="block" data-section="route-forecast">
+    <section id="coverage-map" className="block" data-section="route-forecast">
       <div className="block-head">
         <div>
           <div className="eyebrow">01 · Route forecast</div>

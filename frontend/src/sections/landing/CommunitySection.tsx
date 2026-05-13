@@ -1,6 +1,6 @@
 export default function CommunitySection() {
   return (
-    <section className="block" data-section="community">
+    <section id="community" className="block" data-section="community">
       {/* Section header */}
       <div className="mb-10">
         <div className="eyebrow mb-2.5">04 · Community</div>
