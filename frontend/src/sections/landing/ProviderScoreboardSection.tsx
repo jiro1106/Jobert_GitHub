@@ -18,7 +18,7 @@ export default function ProviderScoreboardSection() {
   const bestScore = Math.max(...providers.map((p) => p.score));
 
   return (
-    <section className="block" data-section="provider-scoreboard">
+    <section id="providers" className="block" data-section="provider-scoreboard">
       <div className="block-head">
         <div>
           <div className="eyebrow">02 · Provider scorecard</div>
