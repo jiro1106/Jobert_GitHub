@@ -77,42 +77,154 @@ export default function HeroPreviewCards() {
 }
 
 function MiniMapSVG() {
+  const towers: { x: number; y: number; r: number; strength: "strong" | "mid" | "weak" }[] = [
+    { x: 65,  y: 225, r: 78, strength: "strong" },
+    { x: 145, y: 195, r: 68, strength: "strong" },
+    { x: 215, y: 160, r: 58, strength: "weak"   },
+    { x: 290, y: 100, r: 68, strength: "mid"    },
+    { x: 348, y: 55,  r: 78, strength: "strong" },
+  ];
+
+  const strengthFill: Record<"strong" | "mid" | "weak", string> = {
+    strong: "url(#tw-strong)",
+    mid:    "url(#tw-mid)",
+    weak:   "url(#tw-weak)",
+  };
+
   return (
-    <svg viewBox="0 0 400 280" preserveAspectRatio="xMidYMid slice" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+    <svg
+      viewBox="0 0 400 280"
+      preserveAspectRatio="xMidYMid slice"
+      width="100%"
+      height="100%"
+      xmlns="http://www.w3.org/2000/svg"
+    >
       <defs>
         <radialGradient id="hbg" cx="50%" cy="40%" r="80%">
-          <stop offset="0%" stopColor="#E8F0FA"/>
-          <stop offset="100%" stopColor="#D2DEEF"/>
+          <stop offset="0%" stopColor="#E8F0FA" />
+          <stop offset="100%" stopColor="#D2DEEF" />
         </radialGradient>
-        <radialGradient id="hok" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#14A06A" stopOpacity="0.35"/>
-          <stop offset="100%" stopColor="#14A06A" stopOpacity="0"/>
+        <radialGradient id="tw-strong" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#14A06A" stopOpacity="0.5" />
+          <stop offset="55%" stopColor="#14A06A" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#14A06A" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="hbad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#D03737" stopOpacity="0.45"/>
-          <stop offset="100%" stopColor="#D03737" stopOpacity="0"/>
+        <radialGradient id="tw-mid" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#C77700" stopOpacity="0.42" />
+          <stop offset="60%" stopColor="#C77700" stopOpacity="0.14" />
+          <stop offset="100%" stopColor="#C77700" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="tw-weak" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#D03737" stopOpacity="0.42" />
+          <stop offset="60%" stopColor="#D03737" stopOpacity="0.14" />
+          <stop offset="100%" stopColor="#D03737" stopOpacity="0" />
         </radialGradient>
       </defs>
-      <rect width="400" height="280" fill="url(#hbg)"/>
-      <ellipse cx="80" cy="220" rx="120" ry="80" fill="url(#hok)"/>
-      <ellipse cx="330" cy="60" rx="100" ry="70" fill="url(#hok)"/>
-      <ellipse cx="220" cy="140" rx="70" ry="50" fill="url(#hbad)"/>
-      <g stroke="#B7C5DA" fill="none" strokeLinecap="round" opacity="0.7">
-        <path d="M 0 230 Q 60 220 110 210" strokeWidth="6"/>
-        <path d="M 110 210 Q 160 200 200 180 Q 250 150 290 110 Q 320 80 340 50" strokeWidth="6"/>
-        <path d="M 0 230 Q 60 220 110 210" strokeWidth="2.5" stroke="#E8EFF8"/>
-        <path d="M 110 210 Q 160 200 200 180 Q 250 150 290 110 Q 320 80 340 50" strokeWidth="2.5" stroke="#E8EFF8"/>
+
+      {/* Map base */}
+      <rect width="400" height="280" fill="url(#hbg)" />
+
+      {/* Subtle road network */}
+      <g stroke="#B7C5DA" fill="none" strokeLinecap="round" opacity="0.45">
+        <path d="M 0 252 Q 100 240 200 215 Q 300 188 400 138" strokeWidth="3" />
+        <path d="M 40 30 Q 130 95 210 145 Q 290 200 390 245" strokeWidth="2.5" />
+        <path d="M 200 0 L 200 280" strokeWidth="1.2" opacity="0.4" />
+        <path d="M 0 140 L 400 140" strokeWidth="1.2" opacity="0.4" />
       </g>
-      <path d="M 60 230 Q 110 220 160 200 Q 220 175 270 130 Q 310 90 340 50"
-            fill="none" stroke="#1F4FFF" strokeWidth="4" strokeLinecap="round"/>
-      <path d="M 200 180 Q 230 165 250 150"
-            fill="none" stroke="#D03737" strokeWidth="4" strokeLinecap="round"/>
-      <circle cx="60" cy="230" r="7" fill="#1F4FFF" stroke="white" strokeWidth="3"/>
-      <circle cx="340" cy="50" r="7" fill="#0B1220" stroke="white" strokeWidth="3"/>
+
+      {/* Tower coverage heatmap — circles overlap to form stronger zones */}
+      <g style={{ mixBlendMode: "multiply" }}>
+        {towers.map((t, i) => (
+          <circle
+            key={`cov-${i}`}
+            cx={t.x}
+            cy={t.y}
+            r={t.r}
+            fill={strengthFill[t.strength]}
+          />
+        ))}
+      </g>
+
+      {/* Tower range outlines — thin dashed circle for visual context */}
+      <g fill="none" stroke="#0B1220" strokeWidth="0.6" strokeDasharray="2 3" opacity="0.22">
+        {towers.map((t, i) => (
+          <circle key={`range-${i}`} cx={t.x} cy={t.y} r={t.r} />
+        ))}
+      </g>
+
+      {/* Route — split into healthy and degraded segments */}
+      {/* white halo for contrast */}
+      <path
+        d="M 60 230 Q 110 220 155 205 Q 200 188 230 168 Q 270 138 305 105 Q 325 80 340 50"
+        fill="none"
+        stroke="white"
+        strokeWidth="6.5"
+        strokeLinecap="round"
+        opacity="0.75"
+      />
+      {/* healthy: Manila → mid */}
+      <path
+        d="M 60 230 Q 110 220 155 205 Q 195 190 215 175"
+        fill="none"
+        stroke="#1F4FFF"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+      />
+      {/* dead zone segment */}
+      <path
+        d="M 215 175 Q 230 165 255 150"
+        fill="none"
+        stroke="#D03737"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeDasharray="5 3"
+      />
+      {/* healthy: mid → La Union */}
+      <path
+        d="M 255 150 Q 285 125 305 105 Q 325 80 340 50"
+        fill="none"
+        stroke="#1F4FFF"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+      />
+
+      {/* Cell towers */}
+      {towers.map((t, i) => (
+        <g key={`tower-${i}`} transform={`translate(${t.x}, ${t.y})`}>
+          {/* signal pulse */}
+          <circle r="11" fill="none" stroke="#0B1220" strokeWidth="0.7" opacity="0.25" />
+          {/* tower icon — mast + base */}
+          <line x1="0" y1="-10" x2="0" y2="3" stroke="#0B1220" strokeWidth="1.4" strokeLinecap="round" />
+          <path d="M -3.5 3 L 0 -2.5 L 3.5 3 Z" fill="#0B1220" opacity="0.9" />
+          {/* signal waves */}
+          <path d="M -3 -10 Q -5.5 -12 -3 -14" fill="none" stroke="#1F4FFF" strokeWidth="0.9" strokeLinecap="round" opacity="0.85" />
+          <path d="M 3 -10 Q 5.5 -12 3 -14" fill="none" stroke="#1F4FFF" strokeWidth="0.9" strokeLinecap="round" opacity="0.85" />
+          {/* top dot */}
+          <circle cx="0" cy="-11" r="1.3" fill="#1F4FFF" />
+        </g>
+      ))}
+
+      {/* Endpoint markers */}
+      <circle cx="60" cy="230" r="7" fill="#1F4FFF" stroke="white" strokeWidth="3" />
+      <circle cx="340" cy="50" r="7" fill="#0B1220" stroke="white" strokeWidth="3" />
+
+      {/* Dead-zone warning */}
       <g>
-        <circle cx="225" cy="167" r="11" fill="white" stroke="#D03737" strokeWidth="2"/>
-        <text x="225" y="171" textAnchor="middle" fontFamily="JetBrains Mono" fontSize="11" fontWeight="700" fill="#D03737">!</text>
+        <circle cx="232" cy="166" r="10" fill="white" stroke="#D03737" strokeWidth="1.8" />
+        <text
+          x="232"
+          y="170"
+          textAnchor="middle"
+          fontFamily="JetBrains Mono"
+          fontSize="10.5"
+          fontWeight="700"
+          fill="#D03737"
+        >
+          !
+        </text>
       </g>
+
+      {/* Labels */}
       <g fontFamily="Plus Jakarta Sans" fill="#475569" fontWeight="600" fontSize="9">
         <text x="60" y="252">Manila</text>
         <text x="318" y="35">La Union</text>

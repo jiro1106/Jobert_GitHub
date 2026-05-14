@@ -110,7 +110,10 @@ export default function ProviderScoreboardSection({
           </div>
         </div>
         <div className="block-head-r">
-          <div className="seg">
+          <div
+            className="seg"
+            title={!hasData ? "Select a route on the map to enable filters" : undefined}
+          >
             {scopes.map((s) => (
               <button
                 key={s.id}

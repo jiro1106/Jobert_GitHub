@@ -145,9 +145,6 @@ const res = await submitChatMessage(text, conversationId, chatContext);
                   <div className="text-[13.5px] font-semibold text-[var(--ink)]">
                     {uc.title}
                   </div>
-                  <div className="text-[11.5px] text-[var(--ink-4)] mt-px">
-                    {uc.subtitle}
-                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 font-bold text-[13px]">
