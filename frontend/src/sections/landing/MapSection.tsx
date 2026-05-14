@@ -15,9 +15,10 @@ import type { RouteCoords } from "../../pages/LandingPage";
    ============================================================ */
 interface MapSectionProps {
   onRouteActive?: (coords: RouteCoords | null) => void;
+  onForecastReady?: (forecast: RouteForecast | null) => void;
 }
 
-export default function MapSection({ onRouteActive }: MapSectionProps) {
+export default function MapSection({ onRouteActive, onForecastReady }: MapSectionProps) {
   const [forecast, setForecast] = useState<RouteForecast | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export default function MapSection({ onRouteActive }: MapSectionProps) {
       forecastAbortRef.current = null;
       setError(null);
       setForecast(null);
+      onForecastReady?.(null);
       onRouteActive?.(null);
       return;
     }
@@ -62,7 +64,7 @@ export default function MapSection({ onRouteActive }: MapSectionProps) {
     const ac = new AbortController();
     forecastAbortRef.current = ac;
 
-    // Immediately notify parent so scoreboard starts loading too
+    // Notify parent immediately so scoreboard shows loading state
     onRouteActive?.(coords);
 
     try {
@@ -91,7 +93,7 @@ export default function MapSection({ onRouteActive }: MapSectionProps) {
         Number.isFinite(strong);
 
       if (hasValidShape) {
-        setForecast({
+        const normalized: RouteForecast = {
           ...result,
           summary: {
             ...result.summary,
@@ -100,15 +102,19 @@ export default function MapSection({ onRouteActive }: MapSectionProps) {
             distanceKm: Number(result.summary.distanceKm) || 0,
             drivingTimeMin: Number(result.summary.drivingTimeMin) || 0,
           },
-        });
+        };
+        setForecast(normalized);
+        onForecastReady?.(normalized);
         setError(null);
       } else {
         console.warn("API shape invalid:", result);
+        onForecastReady?.(null);
         setError("Backend returned incomplete data. Select a route to retry.");
       }
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
       console.error("Forecast error:", err);
+      onForecastReady?.(null);
       setError(err instanceof Error ? err.message : "Failed to fetch forecast.");
     } finally {
       setLoading(false);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import type { ProviderScore } from "../../types/coverage";
+import type { ProviderScore, RouteForecast } from "../../types/coverage";
 import { getProviderScores } from "../../libs/api";
 import type { RouteCoords } from "../../pages/LandingPage";
 
@@ -8,21 +8,46 @@ type Scope = "route" | "dest" | "origin";
 
 interface Props {
   activeRoute: RouteCoords | null;
+  forecast: RouteForecast | null;
 }
 
-export default function ProviderScoreboardSection({ activeRoute }: Props) {
+export default function ProviderScoreboardSection({ activeRoute, forecast }: Props) {
   const [activeScope, setActiveScope] = useState<Scope>("route");
   const [providers, setProviders] = useState<ProviderScore[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasData, setHasData] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    // Clear state when route is deselected
     if (!activeRoute) {
+      abortRef.current?.abort();
       setProviders([]);
       setHasData(false);
+      setLoading(false);
       return;
     }
+
+    // "route" scope: reuse forecast data from MapSection — no extra API call
+    if (activeScope === "route") {
+      if (forecast?.providers?.length) {
+        setProviders(forecast.providers);
+        setHasData(true);
+        setLoading(false);
+        setError(null);
+      } else {
+        // Forecast is still in-flight; show loading until it arrives
+        setLoading(true);
+        setHasData(false);
+      }
+      return;
+    }
+
+    // "origin" or "dest" scope — dedicated fetch with abort support
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
 
     const fetchScores = async () => {
       try {
@@ -33,22 +58,26 @@ export default function ProviderScoreboardSection({ activeRoute }: Props) {
           activeRoute.originLng,
           activeRoute.destLat,
           activeRoute.destLng,
-          activeScope
+          activeScope,
+          { signal: ac.signal }
         );
+        if (ac.signal.aborted) return;
         if (response?.providers?.length > 0) {
           setProviders(response.providers);
           setHasData(true);
         }
       } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         console.error("Error fetching provider scores:", err);
         setError(err instanceof Error ? err.message : "Failed to fetch scores");
       } finally {
-        setLoading(false);
+        if (!ac.signal.aborted) setLoading(false);
       }
     };
 
     fetchScores();
-  }, [activeRoute, activeScope]);
+    return () => ac.abort();
+  }, [activeRoute, activeScope, forecast]);
 
   const scopes: { id: Scope; label: string }[] = [
     { id: "route", label: "This route" },

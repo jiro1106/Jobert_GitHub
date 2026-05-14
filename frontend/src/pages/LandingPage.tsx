@@ -5,6 +5,7 @@ import MapSection from '../sections/landing/MapSection';
 import ProviderScoreboardSection from '../sections/landing/ProviderScoreboardSection';
 import UseCasesSection from '../sections/landing/UseCasesSection';
 import CommunitySection from '../sections/landing/CommunitySection';
+import type { RouteForecast } from '../types/coverage';
 
 export interface RouteCoords {
   originLat: number;
@@ -17,14 +18,20 @@ export interface RouteCoords {
 
 export default function HomePage() {
   const [activeRoute, setActiveRoute] = useState<RouteCoords | null>(null);
+  const [forecast, setForecast] = useState<RouteForecast | null>(null);
+
+  const handleRouteActive = (coords: RouteCoords | null) => {
+    setActiveRoute(coords);
+    if (!coords) setForecast(null);
+  };
 
   return (
     <main>
       <HeroSection />
       <StatsSection />
       <div className="page">
-        <MapSection onRouteActive={setActiveRoute} />
-        <ProviderScoreboardSection activeRoute={activeRoute} />
+        <MapSection onRouteActive={handleRouteActive} onForecastReady={setForecast} />
+        <ProviderScoreboardSection activeRoute={activeRoute} forecast={forecast} />
         <UseCasesSection />
         <CommunitySection />
       </div>

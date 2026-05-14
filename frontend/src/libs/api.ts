@@ -8,6 +8,30 @@ const API_BASE_URL =
   (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ||
   'http://localhost:8001/api';
 
+// ---------------------------------------------------------------------------
+// Session-level TTL cache — prevents redundant fetches for the same route
+// within a 2-minute window (e.g. scope toggles, back-navigation).
+// ---------------------------------------------------------------------------
+const _cache = new Map<string, { data: unknown; expiresAt: number }>();
+const CACHE_TTL_MS = 2 * 60 * 1000;
+
+function _key(...parts: (string | number)[]): string {
+  return parts.map((p) => (typeof p === 'number' ? p.toFixed(3) : p)).join(':');
+}
+
+function _get<T>(key: string): T | null {
+  const entry = _cache.get(key);
+  if (!entry || Date.now() > entry.expiresAt) {
+    _cache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function _set(key: string, data: unknown): void {
+  _cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
 /**
  * Signal Analysis Request Data
  */
@@ -394,29 +418,25 @@ export async function getRouteForecast(
   routePoints?: { latitude: number; longitude: number; name?: string }[],
   options?: { signal?: AbortSignal }
 ): Promise<RouteForecast> {
+  const cacheKey = _key('forecast', originLat, originLng, destLat, destLng);
+  const cached = _get<RouteForecast>(cacheKey);
+  if (cached) return cached;
+
   const response = await fetch(`${API_BASE_URL}/route/forecast`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      origin: {
-        latitude: originLat,
-        longitude: originLng,
-        name: originName,
-      },
-      destination: {
-        latitude: destLat,
-        longitude: destLng,
-        name: destName,
-      },
+      origin: { latitude: originLat, longitude: originLng, name: originName },
+      destination: { latitude: destLat, longitude: destLng, name: destName },
       route_points: routePoints,
       radius_km: 5.0,
     }),
     signal: options?.signal,
   });
 
-  return readEnvelope<RouteForecast>(response);
+  const result = await readEnvelope<RouteForecast>(response);
+  _set(cacheKey, result);
+  return result;
 }
 
 /**
@@ -428,8 +448,13 @@ export async function getProviderScores(
   originLng: number,
   destLat: number,
   destLng: number,
-  scope: 'route' | 'origin' | 'dest' = 'route'
+  scope: 'route' | 'origin' | 'dest' = 'route',
+  options?: { signal?: AbortSignal }
 ): Promise<{ providers: ProviderScore[] }> {
+  const cacheKey = _key('scores', originLat, originLng, destLat, destLng, scope);
+  const cached = _get<{ providers: ProviderScore[] }>(cacheKey);
+  if (cached) return cached;
+
   const params = new URLSearchParams({
     origin_lat: originLat.toString(),
     origin_lon: originLng.toString(),
@@ -440,12 +465,13 @@ export async function getProviderScores(
 
   const response = await fetch(`${API_BASE_URL}/providers/scores?${params}`, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
+    signal: options?.signal,
   });
 
-  return readEnvelope<{ providers: ProviderScore[] }>(response);
+  const result = await readEnvelope<{ providers: ProviderScore[] }>(response);
+  _set(cacheKey, result);
+  return result;
 }
 
 /**
