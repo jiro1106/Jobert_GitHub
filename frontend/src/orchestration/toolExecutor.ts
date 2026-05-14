@@ -1,6 +1,6 @@
+import { ALLOWED_TOOL_NAMES } from "../ai/toolSchemas";
 import { callMcpTool } from "../services/signalPhApi";
 import type { ToolCall, ToolExecutionResult } from "./a2aMessages";
-import { ALLOWED_TOOL_NAMES } from "../ai/toolSchemas";
 
 export async function executeToolCalls(
   toolCalls: ToolCall[]

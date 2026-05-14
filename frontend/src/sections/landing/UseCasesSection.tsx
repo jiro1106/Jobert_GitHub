@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { MOCK_USE_CASES } from "../../types/coverage";
 import type { ChatMessage } from "../../types/coverage";
-import { submitChatMessage } from "../../libs/api";
+import { frontendAgentOrchestrator } from "../../orchestration/agentSingleton";
 import { PROVIDERS } from "../../constants/providers";
 import type { RouteCoords } from "../../pages/LandingPage";
 import type { RouteForecast } from "../../types/coverage";
@@ -16,10 +16,66 @@ const INITIAL_CHAT: ChatMessage[] = [
   {
     id: "welcome",
     role: "bot",
-    text: "Ask about signal for a place or trip. Replies use your live API (tower matches + community reports), not canned copy.",
-    citation: "Signal Assistant",
+    text: "Ask about signal for a place or trip. Replies use your frontend AI router, backend signal tools, and final answer model.",
+    citation: "Frontend LFM Agent",
   },
 ];
+
+const PLACE_HINTS: Record<
+  string,
+  { latitude: number; longitude: number; name: string }
+> = {
+  baguio: {
+    latitude: 16.4023,
+    longitude: 120.596,
+    name: "Baguio",
+  },
+  edsa: {
+    latitude: 14.5746,
+    longitude: 121.0437,
+    name: "EDSA, Metro Manila",
+  },
+  cebu: {
+    latitude: 10.3157,
+    longitude: 123.8854,
+    name: "Cebu",
+  },
+  manila: {
+    latitude: 14.5995,
+    longitude: 120.9842,
+    name: "Manila",
+  },
+};
+
+function resolvePlaceHint(text: string) {
+  const normalized = text.toLowerCase();
+
+  for (const [keyword, place] of Object.entries(PLACE_HINTS)) {
+    if (normalized.includes(keyword)) {
+      return place;
+    }
+  }
+
+  return null;
+}
+
+function isRouteIntent(text: string) {
+  return /\b(route|trip|commute|journey|drive|travel|current route|this route|my route|along the way)\b/i.test(
+    text,
+  );
+}
+
+function isCoverageIntent(text: string) {
+  return /\b(signal|coverage|sim|provider|network|internet|globe|smart|dito|weak|best|recommend|check|analyze)\b/i.test(
+    text,
+  );
+}
+
+function isExplainIntent(text: string) {
+  return /\b(why|explain|what does this mean|summary|summarize|best|which sim|which provider|recommend|compare|globe|smart|dito|weak|coverage|signal|dead zone|deadzone)\b/i.test(
+    text,
+  );
+}
 
 interface UseCasesSectionProps {
   activeRoute: RouteCoords | null;
@@ -33,68 +89,103 @@ export default function UseCasesSection({
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [conversationId, setConversationId] = useState<string | undefined>();
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (bodyRef.current)
+    if (bodyRef.current) {
       bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    }
   }, [messages, isTyping]);
 
   async function send(text: string) {
-    if (!text.trim()) return;
+    const cleanText = text.trim();
+    if (!cleanText) return;
+
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
-      text,
+      text: cleanText,
     };
+
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsTyping(true);
 
     try {
-      const chatContext = activeRoute
-  ? {
-      origin: {
-        latitude: activeRoute.originLat,
-        longitude: activeRoute.originLng,
-        name: activeRoute.originName,
-      },
-      destination: {
-        latitude: activeRoute.destLat,
-        longitude: activeRoute.destLng,
-        name: activeRoute.destName,
-      },
-      radius_km: 5.0,
+      const placeHint = resolvePlaceHint(cleanText);
 
-      // This is the UI-ready forecast, useful for explanation-style prompts.
-      current_forecast: forecast,
+     const wantsActiveRoute = Boolean(
+  activeRoute &&
+    !placeHint &&
+    (isRouteIntent(cleanText) || isCoverageIntent(cleanText)),
+);
+      const wantsForecastExplanation = Boolean(
+        forecast && isExplainIntent(cleanText),
+      );
 
-      // This keeps compatibility with backend agents that look for current_analysis_result.
-      current_analysis_result: forecast,
-    }
-  : {
-      radius_km: 5.0,
-    };
+      console.log("[UseCases Chat Context]", {
+        text: cleanText,
+        activeRoute,
+        forecast,
+        placeHint,
+        wantsActiveRoute,
+        wantsForecastExplanation,
+      });
 
-const res = await submitChatMessage(text, conversationId, chatContext);
-      if (res.conversation_id) {
-        setConversationId(res.conversation_id);
-      }
+      const result = await frontendAgentOrchestrator.answer({
+        prompt: cleanText,
+
+        origin: wantsActiveRoute
+          ? {
+              latitude: activeRoute!.originLat,
+              longitude: activeRoute!.originLng,
+              name: activeRoute!.originName,
+            }
+          : undefined,
+
+        destination: wantsActiveRoute
+          ? {
+              latitude: activeRoute!.destLat,
+              longitude: activeRoute!.destLng,
+              name: activeRoute!.destName,
+            }
+          : undefined,
+
+        latitude: !wantsActiveRoute && placeHint ? placeHint.latitude : undefined,
+        longitude:
+          !wantsActiveRoute && placeHint ? placeHint.longitude : undefined,
+
+        radius_km: 5.0,
+
+        current_analysis_result:
+          wantsActiveRoute || wantsForecastExplanation ? forecast : undefined,
+      });
+
       const botMsg: ChatMessage = {
-        id: res.message.id,
+        id: result.trace_id || (Date.now() + 1).toString(),
         role: "bot",
-        text: res.message.text,
-        citation: res.message.citation,
+        text: result.answer,
+        citation:
+  result.intent === "analyze_route" &&
+  result.tool_calls?.some((tool) => tool.name === "analyze_route" && tool.status === "success")
+    ? "Frontend Router + Route Tool + Final Answer"
+    : result.intent === "analyze_point" &&
+        result.tool_calls?.some((tool) => tool.name === "analyze_point" && tool.status === "success")
+      ? "Frontend Router + Point Tool + Final Answer"
+      : "Frontend Router + Final Answer",
       };
+
       setMessages((prev) => [...prev, botMsg]);
     } catch (e) {
       const errMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: "bot",
-        text: `Could not reach the chat API (${e instanceof Error ? e.message : "unknown error"}). Check that the backend is running and VITE_API_URL matches it (for example http://localhost:8001/api).`,
-        citation: "Signal Assistant",
+        text: `Frontend AI flow failed: ${
+          e instanceof Error ? e.message : "unknown error"
+        }. Check that the LFM server is running on 8020 and the backend /mcp/tools/call endpoint is running.`,
+        citation: "Frontend LFM Agent",
       };
+
       setMessages((prev) => [...prev, errMsg]);
     } finally {
       setIsTyping(false);
@@ -117,7 +208,6 @@ const res = await submitChatMessage(text, conversationId, chatContext);
       </div>
 
       <div className="grid grid-cols-1 gap-[14px] lg:!grid-cols-2 lg:!gap-[18px]">
-        {/* Use case table */}
         <div className="panel">
           <div className="panel-head">
             <div className="panel-title">Popular use cases</div>
@@ -128,6 +218,7 @@ const res = await submitChatMessage(text, conversationId, chatContext);
               Best SIM
             </span>
           </div>
+
           <div>
             {MOCK_USE_CASES.map((uc, i) => (
               <div
@@ -167,7 +258,6 @@ const res = await submitChatMessage(text, conversationId, chatContext);
           </div>
         </div>
 
-        {/* AI assistant chat */}
         <div className="panel flex flex-col">
           <div className="panel-head">
             <div className="panel-title">
@@ -177,7 +267,6 @@ const res = await submitChatMessage(text, conversationId, chatContext);
             </div>
           </div>
 
-          {/* Chat body */}
           <div
             ref={bodyRef}
             className="flex-1 p-[18px] flex flex-col gap-2.5 bg-[var(--tint)] border-b border-[var(--line)] min-h-[240px] overflow-y-auto"
@@ -200,6 +289,7 @@ const res = await submitChatMessage(text, conversationId, chatContext);
                 }}
               >
                 {msg.text}
+
                 {msg.citation && (
                   <div className="mt-1.5">
                     <span
@@ -213,7 +303,6 @@ const res = await submitChatMessage(text, conversationId, chatContext);
               </div>
             ))}
 
-            {/* Typing indicator */}
             {isTyping && (
               <div className="inline-flex gap-[3px] self-start py-[9px] px-3 bg-white border border-[var(--line)] rounded-xl rounded-bl-[4px]">
                 {[0, 0.2, 0.4].map((delay, i) => (
@@ -227,12 +316,11 @@ const res = await submitChatMessage(text, conversationId, chatContext);
             )}
           </div>
 
-          {/* Quick prompts */}
           <div className="flex gap-1.5 py-[10px] px-[14px] border-b border-[var(--line-soft)] overflow-x-auto">
             {QUICK_PROMPTS.map((prompt) => (
               <button
                 key={prompt}
-                onClick={() => send(prompt)}
+                onClick={() => void send(prompt)}
                 className="flex-shrink-0 border border-[var(--line)] bg-white rounded-full py-[5px] px-[11px] text-[11.5px] font-medium text-[var(--ink-3)] whitespace-nowrap"
               >
                 {prompt}
@@ -240,7 +328,6 @@ const res = await submitChatMessage(text, conversationId, chatContext);
             ))}
           </div>
 
-          {/* Input */}
           <div className="flex gap-2 py-3 px-[14px] items-center">
             <input
               value={input}
@@ -252,6 +339,7 @@ const res = await submitChatMessage(text, conversationId, chatContext);
               className="flex-1 border border-[var(--line)] rounded-[9px] py-[9px] px-3 text-[13px] outline-none text-[var(--ink)]"
               style={{ fontFamily: "inherit" }}
             />
+
             <button
               onClick={() => void send(input)}
               className="bg-[var(--brand)] text-white border-0 rounded-[9px] w-9 h-9 grid place-items-center"

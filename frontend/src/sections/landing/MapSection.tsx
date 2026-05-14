@@ -256,12 +256,86 @@ function RouteSidebar({
   loading?: boolean;
   error?: string | null;
 }) {
-  const summary = forecast?.summary;
-  const recommendation = forecast?.recommendation;
-  const gaps = forecast?.gaps ?? [];
+  // Loading state
+  if (loading && !forecast) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        {[120, 100, 160].map((h, i) => (
+          <div
+            key={i}
+            className="panel"
+            style={{ height: h, animation: "pulse 1.5s ease-in-out infinite" }}
+          >
+            <div style={{ padding: 18 }}>
+              <div
+                style={{
+                  background: "#EEF1F7",
+                  borderRadius: 8,
+                  height: 12,
+                  width: "50%",
+                  marginBottom: 10,
+                }}
+              />
+              <div
+                style={{
+                  background: "#EEF1F7",
+                  borderRadius: 8,
+                  height: 28,
+                  width: "35%",
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Error state without usable forecast
+  if (!forecast && error) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "#FEE2E2",
+            border: "1px solid #FCA5A5",
+            borderRadius: 8,
+            fontSize: 13,
+            color: "#DC2626",
+          }}
+        >
+          {error}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            padding: "48px 24px",
+            border: "1.5px dashed var(--line)",
+            borderRadius: 16,
+            color: "var(--ink-4)",
+            textAlign: "center",
+            background: "var(--surface)",
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: 14 }}>
+            Could not load route forecast
+          </div>
+          <div style={{ fontSize: 12 }}>
+            Try selecting the route again or check if the backend is running.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Empty state — no route selected yet
-  if (!forecast && !loading) {
+  if (!forecast) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <div
@@ -300,40 +374,12 @@ function RouteSidebar({
     );
   }
 
-  // Loading state
-  if (loading && !forecast) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-        {[120, 100, 160].map((h, i) => (
-          <div
-            key={i}
-            className="panel"
-            style={{ height: h, animation: "pulse 1.5s ease-in-out infinite" }}
-          >
-            <div style={{ padding: 18 }}>
-              <div
-                style={{
-                  background: "#EEF1F7",
-                  borderRadius: 8,
-                  height: 12,
-                  width: "50%",
-                  marginBottom: 10,
-                }}
-              />
-              <div
-                style={{
-                  background: "#EEF1F7",
-                  borderRadius: 8,
-                  height: 28,
-                  width: "35%",
-                }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
+  // After this point, forecast is guaranteed non-null.
+  const { summary, recommendation } = forecast;
+  const gaps = forecast.gaps ?? [];
+
+  const providerMeta =
+    PROVIDERS[recommendation.provider as keyof typeof PROVIDERS];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -351,6 +397,7 @@ function RouteSidebar({
           ⏳ Analysing route signal coverage…
         </div>
       )}
+
       {error && (
         <div
           style={{
@@ -365,6 +412,7 @@ function RouteSidebar({
           {error}
         </div>
       )}
+
       {/* Trip summary */}
       <div className="panel">
         <div style={{ padding: "18px 18px 8px" }}>
@@ -380,6 +428,7 @@ function RouteSidebar({
           >
             Trip overview
           </div>
+
           <div
             style={{
               fontFamily: "var(--mono)",
@@ -397,6 +446,7 @@ function RouteSidebar({
             </sub>
           </div>
         </div>
+
         <div
           style={{
             display: "grid",
@@ -408,15 +458,17 @@ function RouteSidebar({
           }}
         >
           <TripMetric
-            value={`${Math.floor(summaryDrivingTimeMin / 60)}h ${summaryDrivingTimeMin % 60}m`}
+            value={`${Math.floor(summaryDrivingTimeMin / 60)}h ${
+              summaryDrivingTimeMin % 60
+            }m`}
             label="Est. drive time"
           />
           <TripMetric
-            value={`${summary?.strongSignalPct ?? 0}%`}
+            value={`${summary.strongSignalPct ?? 0}%`}
             label="Strong signal"
           />
           <TripMetric
-            value={String(summary?.deadZoneCount ?? 0)}
+            value={String(summary.deadZoneCount ?? 0)}
             label="Dead zones"
             color="var(--bad)"
           />
@@ -434,6 +486,7 @@ function RouteSidebar({
             <InfoIcon />
           </button>
         </div>
+
         <div
           className="panel-body"
           style={{ display: "flex", alignItems: "center", gap: 14 }}
@@ -448,20 +501,44 @@ function RouteSidebar({
               flexShrink: 0,
             }}
           >
-            <img
-              src={PROVIDERS[recommendation.provider]?.logo}
-              alt={recommendation.name}
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
-            />
+            {providerMeta?.logo ? (
+              <img
+                src={providerMeta.logo}
+                alt={recommendation.name}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: 14,
+                  display: "grid",
+                  placeItems: "center",
+                  background: "var(--tint)",
+                  color: "var(--ink-4)",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                SIM
+              </div>
+            )}
           </div>
+
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>
-              {recommendation?.name ?? "Unknown"}
+              {recommendation.name}
             </div>
             <div style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 2 }}>
-              {recommendation?.reason}
+              {recommendation.reason}
             </div>
           </div>
+
           <div style={{ textAlign: "right" }}>
             <div
               style={{
@@ -471,7 +548,7 @@ function RouteSidebar({
                 color: "var(--ok)",
               }}
             >
-              {recommendation?.score ?? 0}
+              {recommendation.score ?? 0}
             </div>
             <div
               style={{
@@ -505,50 +582,73 @@ function RouteSidebar({
             {gaps.length} found
           </span>
         </div>
+
         <div>
-          {gaps.map((gap, i) => (
+          {gaps.length === 0 ? (
             <div
-              key={gap.id}
               style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 12,
-                padding: "12px 18px",
-                borderTop: i === 0 ? 0 : "1px solid var(--line-soft)",
+                padding: "14px 18px",
+                fontSize: 12,
+                color: "var(--ink-4)",
               }}
             >
+              No major weak-signal gaps detected for this route.
+            </div>
+          ) : (
+            gaps.map((gap, i) => (
               <div
+                key={gap.id}
                 style={{
-                  fontFamily: "var(--mono)",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "var(--ink-4)",
-                  width: 48,
-                  flexShrink: 0,
-                  paddingTop: 1,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  padding: "12px 18px",
+                  borderTop: i === 0 ? 0 : "1px solid var(--line-soft)",
                 }}
               >
-                km {gap.km}
-              </div>
-              <div
-                className={`gap-icon ${gap.level === "patchy" ? "warn" : ""}`}
-              >
-                {gap.level === "dead" ? <XSmallIcon /> : <WarnSmallIcon />}
-              </div>
-              <div style={{ flex: 1 }}>
                 <div
-                  style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}
+                  style={{
+                    fontFamily: "var(--mono)",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "var(--ink-4)",
+                    width: 48,
+                    flexShrink: 0,
+                    paddingTop: 1,
+                  }}
                 >
-                  {gap.name}
+                  km {gap.km}
                 </div>
                 <div
-                  style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 1 }}
+                  className={`gap-icon ${
+                    gap.level === "patchy" ? "warn" : ""
+                  }`}
                 >
-                  {gap.description}
+                  {gap.level === "dead" ? <XSmallIcon /> : <WarnSmallIcon />}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "var(--ink)",
+                    }}
+                  >
+                    {gap.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--ink-4)",
+                      marginTop: 1,
+                    }}
+                  >
+                    {gap.description}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>

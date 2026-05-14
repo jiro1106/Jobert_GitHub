@@ -3,7 +3,7 @@ import type { ChatbotInput } from "../orchestration/a2aMessages";
 
 export function buildRouterPrompt(input: ChatbotInput): string {
   return `
-You are the SignalPH tool router.
+You are the SignalPH browser-side tool router.
 
 Return ONLY raw JSON.
 Do not use markdown.
@@ -11,18 +11,11 @@ Do not use code fences.
 Do not invent tools.
 Do not invent coordinates.
 Do not invent signal results.
-The field tool_calls must be an array of objects.
-The field arguments must always be a JSON object, never an array.
 
 Allowed intents:
 - analyze_point
 - analyze_route
-- submit_signal_report
 - explain_current_result
-- summarize_reports
-- show_towers
-- offline_readiness
-- anomaly_check
 - unclear
 
 Available tools:
@@ -46,59 +39,69 @@ ${JSON.stringify(
   2
 )}
 
-Routing rules:
-- If the user asks about one location and latitude/longitude are available, use analyze_point.
-- If the user asks about a route, trip, path, origin/destination, or multiple points, use analyze_route.
-- If the user wants to submit feedback/report, use submit_signal_report.
-- If current_analysis_result exists and the user asks "why", "explain", "which is best", "weak spots", or "what does this mean", use explain_current_result and do not call tools.
-- If required inputs are missing, return them in missing_inputs.
-- Copy coordinates from available context into tool arguments.
+Rules:
+- If the user is only greeting, chatting casually, or saying something unrelated like "hello" or "yo", return intent "unclear" and no tool calls.
+- Use analyze_point only when latitude and longitude are available and the user asks about signal, SIM, coverage, provider, internet, network, or a place.
+- Use analyze_route only when origin and destination are available AND the user asks about a route, trip, commute, drive, travel, or "this route".
+- Use explain_current_result only when current_analysis_result exists and the user asks to explain, summarize, compare, or interpret the current result.
+- Do not use analyze_route just because origin and destination exist.
+- Do not use analyze_point just because latitude and longitude exist.
+- If required inputs are missing, put them in missing_inputs.
+- tool_calls must be an array of objects.
+- arguments must always be a JSON object, never an array.
 
-Return exactly this JSON shape:
+Return valid JSON using this shape:
 {
-  "intent": "analyze_point",
-  "tool_calls": [
-    {
-      "name": "analyze_point",
-      "arguments": {
-        "latitude": 14.6175,
-        "longitude": 120.99,
-        "radius_km": 5.0
-      }
-    }
-  ],
-  "resource_reads": [],
-  "next_agents": [],
+  "intent": "unclear",
+  "tool_calls": [],
   "missing_inputs": [],
   "reason": "short reason"
 }
 `;
 }
 
-export function buildJsonAgentPrompt(params: {
-  agentName: string;
-  task: string;
-  input: unknown;
-  outputShape: unknown;
+export function buildFinalAnswerPrompt(input: {
+  userPrompt: string;
+  plan: unknown;
+  analysisResult: unknown;
+  toolResults: unknown;
 }): string {
   return `
-You are ${params.agentName} for SignalPH.
+You are the SignalPH final answer agent.
 
-Task:
-${params.task}
+Return ONLY raw JSON.
+Do not use markdown.
+Do not use code fences.
+Do not expose raw tower lists unless the user asks for debugging.
+Do not invent facts.
+Use the backend analysis result as the source of truth.
+
+User prompt:
+${input.userPrompt}
+
+Router plan:
+${JSON.stringify(input.plan, null, 2)}
+
+Backend analysis summary:
+${JSON.stringify(input.analysisResult, null, 2)}
+
+Tool results summary:
+${JSON.stringify(input.toolResults, null, 2)}
 
 Rules:
-- Return ONLY raw JSON.
-- Do not use markdown.
-- Do not use code fences.
-- Do not invent data.
-- Base your answer only on the provided input.
-- Keep text concise and user-facing.
-
-Input:
-${JSON.stringify(params.input, null, 2)}
+- If intent is unclear, answer naturally and ask the user to provide a place, route, or signal question.
+- If a backend analysis exists, answer based on best_provider, provider_scores, weak_segments, reports, and recommendation_text.
+- Keep the answer short.
+- Do not repeat the same idea twice.
 
 Return exactly this JSON shape:
-${JSON.stringify(params.outputShape, null, 2)}
+{
+  "intent": "unclear",
+  "answer": "short useful answer",
+  "recommended_provider": "Globe | Smart | DITO | Unknown",
+  "confidence": "low | medium | high",
+  "warnings": [],
+  "tool_summary": "short note about what happened"
+}
 `;
 }

@@ -1,24 +1,22 @@
 import { LFMClient } from "../ai/lfmClient";
 import { RouterAgent } from "../agents/routerAgent";
-import { SimRecommenderAgent } from "../agents/simRecommenderAgent";
-import { CoverageExplainerAgent } from "../agents/coverageExplainerAgent";
-import { ReportSummarizerAgent } from "../agents/reportSummarizerAgent";
-import { TowerMapperAgent } from "../agents/towerMapperAgent";
-import { OfflineReadinessAgent } from "../agents/offlineReadinessAgent";
-import { AnomalyAgent } from "../agents/anomalyAgent";
 import { FinalAnswerAgent } from "../agents/finalAnswerAgent";
 import { executeToolCalls } from "./toolExecutor";
 import type {
-  AgentOutputs,
   ChatbotInput,
   FinalChatbotResponse,
+  RouterPlan,
+  ToolExecutionResult,
 } from "./a2aMessages";
 
 function createTraceId() {
   return crypto.randomUUID?.() || `trace-${Date.now()}`;
 }
 
-function getPrimaryAnalysisResult(toolResults: any[], input: ChatbotInput) {
+function getPrimaryAnalysisResult(
+  toolResults: ToolExecutionResult[],
+  input: ChatbotInput
+) {
   const successfulTool = toolResults.find((tool) => tool.status === "success");
 
   if (successfulTool?.data) {
@@ -27,33 +25,131 @@ function getPrimaryAnalysisResult(toolResults: any[], input: ChatbotInput) {
 
   return input.current_analysis_result || null;
 }
+function isCasualPrompt(prompt: string) {
+  return /^(hi|hello|hey|yo|sup|thanks|thank you|ok|okay|test|uhh|hmm)$/i.test(
+    prompt.trim()
+  );
+}
 
+function isRoutePrompt(prompt: string) {
+  return /\b(route|trip|commute|journey|drive|travel|current route|this route|my route|along the way)\b/i.test(
+    prompt
+  );
+}
+
+function isSignalPrompt(prompt: string) {
+  return /\b(signal|coverage|sim|provider|network|internet|globe|smart|dito|weak|best|recommend|check|analyze|explain)\b/i.test(
+    prompt
+  );
+}
+
+function buildDeterministicPlan(input: ChatbotInput): RouterPlan | null {
+  const prompt = input.prompt.trim();
+
+  if (isCasualPrompt(prompt)) {
+    return {
+      intent: "unclear",
+      tool_calls: [],
+      missing_inputs: [],
+      reason: "The user sent a casual message, not a signal analysis request.",
+    };
+  }
+
+  const routeAsked = isRoutePrompt(prompt);
+  const signalAsked = isSignalPrompt(prompt);
+
+  // If the user says random/non-signal stuff, do not ask for latitude/longitude.
+  if (!routeAsked && !signalAsked) {
+    return {
+      intent: "unclear",
+      tool_calls: [],
+      missing_inputs: [],
+      reason: "The user did not ask a signal, coverage, location, or route question.",
+    };
+  }
+
+  // IMPORTANT FIX:
+  // If a route is active, coverage/signal/SIM questions should use the route.
+  // Example: "can you check for coverage"
+  if ((routeAsked || signalAsked) && input.origin && input.destination) {
+    return {
+      intent: "analyze_route",
+      tool_calls: [
+        {
+          name: "analyze_route",
+          arguments: {
+            origin: input.origin,
+            destination: input.destination,
+            route_points: input.route_points,
+            radius_km: input.radius_km ?? 5.0,
+          },
+        },
+      ],
+      missing_inputs: [],
+      reason: "The user asked about coverage while an active route is available.",
+    };
+  }
+
+  if (signalAsked && input.latitude !== undefined && input.longitude !== undefined) {
+    return {
+      intent: "analyze_point",
+      tool_calls: [
+        {
+          name: "analyze_point",
+          arguments: {
+            latitude: input.latitude,
+            longitude: input.longitude,
+            radius_km: input.radius_km ?? 5.0,
+          },
+        },
+      ],
+      missing_inputs: [],
+      reason: "The user asked about signal coverage for a known point.",
+    };
+  }
+
+  if (input.current_analysis_result && signalAsked) {
+    return {
+      intent: "explain_current_result",
+      tool_calls: [],
+      missing_inputs: [],
+      reason: "The user asked about signal context and a current analysis result exists.",
+    };
+  }
+
+  return {
+    intent: "unclear",
+    tool_calls: [],
+    missing_inputs: [],
+    reason: "The user asked about coverage but no route or location context is available.",
+  };
+}
 export class ChatbotOrchestrator {
   private lfm = new LFMClient();
-
   private routerAgent = new RouterAgent(this.lfm);
-  private simRecommenderAgent = new SimRecommenderAgent(this.lfm);
-  private coverageExplainerAgent = new CoverageExplainerAgent(this.lfm);
-  private reportSummarizerAgent = new ReportSummarizerAgent(this.lfm);
-  private towerMapperAgent = new TowerMapperAgent();
-  private offlineReadinessAgent = new OfflineReadinessAgent(this.lfm);
-  private anomalyAgent = new AnomalyAgent(this.lfm);
   private finalAnswerAgent = new FinalAnswerAgent(this.lfm);
+
+  async preloadModel() {
+    await this.lfm.load();
+  }
 
   async answer(input: ChatbotInput): Promise<FinalChatbotResponse> {
     const traceId = createTraceId();
 
-    const plan = await this.routerAgent.plan(input);
+    console.log("[Agent Trace] start", { traceId, input });
+
+    const deterministicPlan = buildDeterministicPlan(input);
+    const plan = deterministicPlan ?? (await this.routerAgent.plan(input));
+
+    console.log("[Agent Trace] router plan", plan);
 
     if (plan.missing_inputs?.length > 0) {
       return {
         intent: plan.intent,
-        answer: `Missing required input: ${plan.missing_inputs.join(", ")}`,
+        answer: `I need this first: ${plan.missing_inputs.join(", ")}.`,
         recommended_provider: "Unknown",
         confidence: "low",
         analysis_result: null,
-        agent_outputs: {},
-        map_layers: null,
         tool_calls: [],
         warnings: plan.missing_inputs,
         trace_id: traceId,
@@ -63,54 +159,19 @@ export class ChatbotOrchestrator {
     const toolResults =
       plan.tool_calls?.length > 0 ? await executeToolCalls(plan.tool_calls) : [];
 
+    console.log("[Agent Trace] tool results", toolResults);
+
     const analysisResult = getPrimaryAnalysisResult(toolResults, input);
-
-    if (!analysisResult) {
-      return {
-        intent: plan.intent,
-        answer:
-          "I need a current analysis result or enough location/route data before I can answer that.",
-        recommended_provider: "Unknown",
-        confidence: "low",
-        analysis_result: null,
-        agent_outputs: {},
-        map_layers: null,
-        tool_calls: toolResults.map((tool) => ({
-          name: tool.name,
-          status: tool.status,
-        })),
-        warnings: ["No analysis result available."],
-        trace_id: traceId,
-      };
-    }
-
-    const agentOutputs: AgentOutputs = {};
-
-    agentOutputs.sim_recommender =
-      await this.simRecommenderAgent.run(analysisResult);
-
-    agentOutputs.coverage_explainer =
-      await this.coverageExplainerAgent.run(analysisResult);
-
-    agentOutputs.report_summarizer =
-      await this.reportSummarizerAgent.run(analysisResult);
-
-    agentOutputs.offline_readiness =
-      await this.offlineReadinessAgent.run(analysisResult);
-
-    agentOutputs.anomaly = await this.anomalyAgent.run(analysisResult);
-
-    const towerMapOutput = this.towerMapperAgent.run(analysisResult);
-    agentOutputs.tower_mapper = towerMapOutput;
 
     const finalAnswer = await this.finalAnswerAgent.run({
       traceId,
+      userPrompt: input.prompt,
       plan,
       analysisResult,
-      agentOutputs,
-      mapLayers: towerMapOutput.map_layers,
       toolResults,
     });
+
+    console.log("[Agent Trace] final answer", finalAnswer);
 
     return finalAnswer;
   }
