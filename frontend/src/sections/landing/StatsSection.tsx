@@ -31,42 +31,49 @@ export default function StatsSection() {
 
   return (
     <div className="border-t border-[var(--line)] bg-white">
-      {error && (
-        <div
-          style={{
-            padding: "12px 16px",
-            backgroundColor: "#FEE2E2",
-            border: "1px solid #FCA5A5",
-            color: "#DC2626",
-            fontSize: 13,
-            margin: "12px 16px",
-            borderRadius: 8,
-          }}
-        >
-          {error}
-        </div>
-      )}
       <div className="max-w-[1180px] mx-auto px-4 grid grid-cols-2 md:!px-7 md:!grid-cols-4">
-        {stats.map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08, duration: 0.4, ease: 'easeOut' }}
-            className="py-4 px-[14px] border-r border-r-[var(--line)] border-b border-b-[var(--line-soft)] flex items-center gap-3 min-w-0 md:!py-[18px] md:!px-6 md:!border-b-0 md:!gap-[14px]"
-          >
-            <div
-              className="text-[22px] font-semibold tracking-[-0.5px] text-[var(--ink)] leading-none flex-shrink-0 md:!text-[26px]"
-              style={{ fontFamily: 'var(--mono)' }}
-            >
-              {stat.value}
-            </div>
-            <div className="text-[11px] text-[var(--ink-4)] leading-[1.3] min-w-0 md:!text-[11.5px]">
-              <b className="text-[var(--ink)] font-semibold block">{stat.label}</b>
-              {stat.sublabel}
-            </div>
-          </motion.div>
-        ))}
+        {loading
+          ? [0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="py-4 px-[14px] border-r border-r-[var(--line)] border-b border-b-[var(--line-soft)] flex items-center gap-3 min-w-0 md:!py-[18px] md:!px-6 md:!border-b-0 md:!gap-[14px]"
+              >
+                <div
+                  className="h-7 w-12 rounded-md flex-shrink-0"
+                  style={{ background: "#EEF1F7", animation: "pulse 1.5s ease-in-out infinite" }}
+                />
+                <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+                  <div
+                    className="h-3 w-20 rounded"
+                    style={{ background: "#EEF1F7", animation: "pulse 1.5s ease-in-out infinite" }}
+                  />
+                  <div
+                    className="h-2.5 w-28 rounded"
+                    style={{ background: "#EEF1F7", animation: "pulse 1.5s ease-in-out infinite" }}
+                  />
+                </div>
+              </div>
+            ))
+          : stats.map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.08, duration: 0.4, ease: 'easeOut' }}
+                className="py-4 px-[14px] border-r border-r-[var(--line)] border-b border-b-[var(--line-soft)] flex items-center gap-3 min-w-0 md:!py-[18px] md:!px-6 md:!border-b-0 md:!gap-[14px]"
+              >
+                <div
+                  className="text-[22px] font-semibold tracking-[-0.5px] text-[var(--ink)] leading-none flex-shrink-0 md:!text-[26px]"
+                  style={{ fontFamily: 'var(--mono)' }}
+                >
+                  {stat.value}
+                </div>
+                <div className="text-[11px] text-[var(--ink-4)] leading-[1.3] min-w-0 md:!text-[11.5px]">
+                  <b className="text-[var(--ink)] font-semibold block">{stat.label}</b>
+                  {stat.sublabel}
+                </div>
+              </motion.div>
+            ))}
       </div>
 
       {/* Fix borders: 2nd cell no right border on mobile; all 4 visible on md */}

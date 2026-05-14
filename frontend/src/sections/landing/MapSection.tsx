@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { RouteForecast } from "../../types/coverage";
 import MapComponent, {
@@ -26,12 +26,21 @@ export default function MapSection({
   const [forecast, setForecast] = useState<RouteForecast | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const fromParam = searchParams.get("from") ?? "";
   const toParam = searchParams.get("to") ?? "";
   const [mapRouteMetrics, setMapRouteMetrics] =
     useState<RouteMetricsFromMap | null>(null);
   const forecastAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const nav = performance.getEntriesByType(
+      "navigation",
+    )[0] as PerformanceNavigationTiming;
+    if (nav?.type === "reload") {
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   useEffect(() => {
     setMapRouteMetrics(null);
@@ -548,109 +557,71 @@ function RouteSidebar({
 
 /* ---- Forecast Chart — real data-driven ---- */
 function ForecastChart({ forecast }: { forecast: RouteForecast }) {
-  const [activeProviders, setActiveProviders] = useState(new Set(["globe"]));
+  const svgRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<{
     svgX: number;
     values: Record<string, number>;
   } | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
 
   const W = 900,
     H = 200;
+  const MARGIN = 30;
 
-  const globePts: [number, number][] = [
-    [30, 45],
-    [90, 40],
-    [150, 50],
-    [210, 60],
-    [270, 70],
-    [330, 130],
-    [380, 75],
-    [440, 60],
-    [500, 50],
-    [560, 110],
-    [610, 80],
-    [670, 60],
-    [730, 55],
-    [780, 90],
-    [830, 60],
-    [870, 50],
-  ];
-  const smartPts: [number, number][] = [
-    [30, 60],
-    [90, 50],
-    [150, 65],
-    [210, 80],
-    [270, 95],
-    [330, 140],
-    [380, 100],
-    [440, 90],
-    [500, 75],
-    [560, 130],
-    [610, 110],
-    [670, 90],
-    [730, 80],
-    [780, 105],
-    [830, 85],
-    [870, 75],
-  ];
-  const ditoPts: [number, number][] = [
-    [30, 90],
-    [90, 95],
-    [150, 110],
-    [210, 130],
-    [270, 145],
-    [330, 175],
-    [380, 150],
-    [440, 140],
-    [500, 135],
-    [560, 165],
-    [610, 150],
-    [670, 130],
-    [730, 125],
-    [780, 145],
-    [830, 130],
-    [870, 120],
-  ];
+  const origin = forecast.origin.label;
+  const destination = forecast.destination.label;
+  const axisPoints = [0, 0.2, 0.4, 0.6, 0.8, 1.0].map((t) => ({
+    km: Math.round(t * forecast.summary.distanceKm),
+  }));
 
-  const providerConfig = [
-    {
-      id: "globe" as const,
-      label: PROVIDERS.globe.shortName,
-      color: PROVIDERS.globe.color,
-      pts: globePts,
-      dash: undefined as string | undefined,
-    },
-    {
-      id: "smart" as const,
-      label: PROVIDERS.smart.shortName,
-      color: PROVIDERS.smart.color,
-      pts: smartPts,
-      dash: undefined as string | undefined,
-    },
-    {
-      id: "dito" as const,
-      label: PROVIDERS.dito.shortName,
-      color: PROVIDERS.dito.color,
-      pts: ditoPts,
-      dash: "5 4" as string | undefined,
-    },
-  ];
+  // Build provider lines from real sparkline data
+  const providerConfig = useMemo(() => {
+    const DASHES: (string | undefined)[] = [undefined, undefined, "5 4", "3 2"];
+    const usableW = W - MARGIN * 2;
+    return forecast.providers.map((p, idx) => {
+      const meta = PROVIDERS[p.provider as keyof typeof PROVIDERS];
+      const sparkline =
+        Array.isArray(p.sparklineData) && p.sparklineData.length >= 2
+          ? p.sparklineData
+          : Array.from({ length: 28 }, () => p.score);
+      const n = sparkline.length;
+      const pts: [number, number][] = sparkline.map((v, i) => [
+        MARGIN + (i / (n - 1)) * usableW,
+        H - (v / 100) * H,
+      ]);
+      return {
+        id: p.provider,
+        label: meta?.shortName ?? p.name,
+        color: meta?.color ?? "#94A3B8",
+        pts,
+        dash: DASHES[idx],
+      };
+    });
+  }, [forecast.providers]);
 
-  const deadZones = [
-    { x: 305, w: 50, label: "Dead zone", color: "#D03737" },
-    { x: 555, w: 40, label: "Patchy", color: "#C77700" },
-    { x: 755, w: 32, label: "Patchy", color: "#C77700" },
-  ];
+  const [activeProviders, setActiveProviders] = useState<Set<string>>(
+    () => new Set(providerConfig.map((p) => p.id)),
+  );
 
-  const axis: { km: string; place: string; highlight?: boolean }[] = [
-    { km: "0 km", place: "Manila" },
-    { km: "50 km", place: "Tarlac" },
-    { km: "78 km", place: "Gap", highlight: true },
-    { km: "120 km", place: "Dagupan" },
-    { km: "160 km", place: "Aringay" },
-    { km: "214 km", place: "La Union" },
-  ];
+  // Reset when forecast changes (new route selected)
+  useEffect(() => {
+    setActiveProviders(new Set(providerConfig.map((p) => p.id)));
+  }, [providerConfig]);
+
+  // Build dead zones from real gap data
+  const deadZones = useMemo(() => {
+    const usableW = W - MARGIN * 2;
+    const totalKm = forecast.summary.distanceKm || 1;
+    return forecast.gaps.map((gap) => {
+      const centerX = MARGIN + (gap.km / totalKm) * usableW;
+      const w = gap.level === "dead" ? 50 : 40;
+      return {
+        x: centerX - w / 2,
+        w,
+        label: gap.level === "dead" ? "Dead zone" : "Patchy",
+        color: gap.level === "dead" ? "#D03737" : "#C77700",
+      };
+    });
+  }, [forecast.gaps, forecast.summary.distanceKm]);
 
   function smoothPath(pts: [number, number][], tension = 0.35): string {
     const d: string[] = [`M ${pts[0][0]} ${pts[0][1]}`];
@@ -749,7 +720,7 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {forecast.providers?.map((p) => {
-            const meta = providerMeta[p.provider];
+            const meta = PROVIDERS[p.provider as keyof typeof PROVIDERS];
             if (!meta) return null;
             return (
               <button
@@ -799,14 +770,19 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
             xmlns="http://www.w3.org/2000/svg"
           >
             <defs>
-              <linearGradient id="fillGlobe" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1F4FFF" stopOpacity="0.15" />
-                <stop offset="100%" stopColor="#1F4FFF" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="fillSmart" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#E11D48" stopOpacity="0.08" />
-                <stop offset="100%" stopColor="#E11D48" stopOpacity="0" />
-              </linearGradient>
+              {providerConfig.slice(0, 2).map((p) => (
+                <linearGradient
+                  key={p.id}
+                  id={`fill-${p.id}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop offset="0%" stopColor={p.color} stopOpacity="0.13" />
+                  <stop offset="100%" stopColor={p.color} stopOpacity="0" />
+                </linearGradient>
+              ))}
             </defs>
 
             {/* Signal quality zone bands */}
@@ -950,18 +926,15 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
               </g>
             ))}
 
-            {/* Area fills */}
-            {activeProviders.has("globe") && (
-              <path
-                d={`${smoothPath(globePts)} L 870 ${H} L 30 ${H} Z`}
-                fill="url(#fillGlobe)"
-              />
-            )}
-            {activeProviders.has("smart") && (
-              <path
-                d={`${smoothPath(smartPts)} L 870 ${H} L 30 ${H} Z`}
-                fill="url(#fillSmart)"
-              />
+            {/* Area fills — first two providers only */}
+            {providerConfig.slice(0, 2).map((p) =>
+              activeProviders.has(p.id) && p.pts.length >= 2 ? (
+                <path
+                  key={p.id}
+                  d={`${smoothPath(p.pts)} L ${W - MARGIN} ${H} L ${MARGIN} ${H} Z`}
+                  fill={`url(#fill-${p.id})`}
+                />
+              ) : null,
             )}
 
             {/* Provider lines */}
