@@ -1,72 +1,55 @@
-import { useState, useRef, useEffect } from "react";
 import { MOCK_USE_CASES } from "../../types/coverage";
-import type { ChatMessage } from "../../types/coverage";
-import { submitChatMessage } from "../../libs/api";
 import { PROVIDERS } from "../../constants/providers";
 
-const QUICK_PROMPTS = [
-  "Which SIM for Baguio trip?",
-  "Signal near EDSA?",
-  "Globe vs Smart in Cebu?",
-];
-
-const INITIAL_CHAT: ChatMessage[] = [
+const USER_SEGMENTS = [
   {
-    id: "welcome",
-    role: "bot",
-    text: "Ask about signal for a place or trip. Replies use your live API (tower matches + community reports), not canned copy.",
-    citation: "Signal Assistant",
+    id: "commuters",
+    label: "Daily commuters",
+    share: 38,
+    color: "#3457FF",
+    coverage: 86,
+    speed: 74,
+    offline: 22,
   },
-];
+  {
+    id: "travelers",
+    label: "Intercity travelers",
+    share: 27,
+    color: "#14B8A6",
+    coverage: 78,
+    speed: 66,
+    offline: 41,
+  },
+  {
+    id: "field",
+    label: "Field teams",
+    share: 21,
+    color: "#F59E0B",
+    coverage: 92,
+    speed: 61,
+    offline: 63,
+  },
+  {
+    id: "events",
+    label: "Event crews",
+    share: 14,
+    color: "#EF4444",
+    coverage: 70,
+    speed: 82,
+    offline: 28,
+  },
+] as const;
+
+const PRIORITY_LEGEND = [
+  { key: "coverage", label: "Coverage", color: "#3457FF" },
+  { key: "speed", label: "Speed", color: "#14B8A6" },
+  { key: "offline", label: "Offline", color: "#F59E0B" },
+] as const;
+
+type PriorityKey = (typeof PRIORITY_LEGEND)[number]["key"];
+type UserSegment = (typeof USER_SEGMENTS)[number];
 
 export default function UseCasesSection() {
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
-  const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [conversationId, setConversationId] = useState<string | undefined>();
-  const bodyRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (bodyRef.current)
-      bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
-  }, [messages, isTyping]);
-
-  async function send(text: string) {
-    if (!text.trim()) return;
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      text,
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setIsTyping(true);
-
-    try {
-      const res = await submitChatMessage(text, conversationId);
-      if (res.conversation_id) {
-        setConversationId(res.conversation_id);
-      }
-      const botMsg: ChatMessage = {
-        id: res.message.id,
-        role: "bot",
-        text: res.message.text,
-        citation: res.message.citation,
-      };
-      setMessages((prev) => [...prev, botMsg]);
-    } catch (e) {
-      const errMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: "bot",
-        text: `Could not reach the chat API (${e instanceof Error ? e.message : "unknown error"}). Check that the backend is running and VITE_API_URL matches it (for example http://localhost:8001/api).`,
-        citation: "Signal Assistant",
-      };
-      setMessages((prev) => [...prev, errMsg]);
-    } finally {
-      setIsTyping(false);
-    }
-  }
-
   return (
     <section id="use-cases" className="block" data-section="use-cases">
       <div className="block-head">
@@ -133,107 +116,105 @@ export default function UseCasesSection() {
           </div>
         </div>
 
-        {/* AI assistant chat */}
+        {/* User comparisons */}
         <div className="panel flex flex-col">
           <div className="panel-head">
             <div className="panel-title">
               <span className="text-sm">✦</span>
-              Ask SignalPH
-              <span className="badge">AI</span>
+              User comparisons
+              <span className="badge">Mock</span>
             </div>
           </div>
 
-          {/* Chat body */}
-          <div
-            ref={bodyRef}
-            className="flex-1 p-[18px] flex flex-col gap-2.5 bg-[var(--tint)] border-b border-[var(--line)] min-h-[240px] overflow-y-auto"
-          >
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                style={{
-                  maxWidth: "88%",
-                  padding: "10px 13px",
-                  borderRadius: 12,
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                  alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-                  background: msg.role === "user" ? "var(--ink)" : "white",
-                  border: msg.role === "bot" ? "1px solid var(--line)" : "none",
-                  color: msg.role === "user" ? "white" : "var(--ink)",
-                  borderBottomRightRadius: msg.role === "user" ? 4 : 12,
-                  borderBottomLeftRadius: msg.role === "bot" ? 4 : 12,
-                }}
-              >
-                {msg.text}
-                {msg.citation && (
-                  <div className="mt-1.5">
-                    <span
-                      className="inline-flex items-center gap-[5px] bg-[var(--brand-tint)] text-[var(--brand-ink)] rounded-[5px] py-[3px] px-[7px] text-[10px] font-semibold"
-                      style={{ fontFamily: "var(--mono)" }}
-                    >
-                      ↗ {msg.citation}
-                    </span>
-                  </div>
-                )}
+          <div className="p-[18px] flex flex-col gap-4">
+            <div
+              className="rounded-2xl border border-[var(--line)] p-[14px]"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(52,87,255,0.08), rgba(20,184,166,0.06))",
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-[12px] font-semibold text-[var(--ink)]">
+                  User mix by trip type
+                </div>
+                <div className="text-[10px] text-[var(--ink-4)]">% of chats</div>
               </div>
-            ))}
 
-            {/* Typing indicator */}
-            {isTyping && (
-              <div className="inline-flex gap-[3px] self-start py-[9px] px-3 bg-white border border-[var(--line)] rounded-xl rounded-bl-[4px]">
-                {[0, 0.2, 0.4].map((delay, i) => (
-                  <span
-                    key={i}
-                    className="w-[5px] h-[5px] rounded-full bg-[var(--ink-5)]"
-                    style={{ animation: `bounce 1.2s ${delay}s infinite` }}
+              <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-white border border-[var(--line)] flex">
+                {USER_SEGMENTS.map((segment) => (
+                  <div
+                    key={segment.id}
+                    style={{
+                      width: `${segment.share}%`,
+                      background: segment.color,
+                    }}
                   />
                 ))}
               </div>
-            )}
-          </div>
 
-          {/* Quick prompts */}
-          <div className="flex gap-1.5 py-[10px] px-[14px] border-b border-[var(--line-soft)] overflow-x-auto">
-            {QUICK_PROMPTS.map((prompt) => (
-              <button
-                key={prompt}
-                onClick={() => send(prompt)}
-                className="flex-shrink-0 border border-[var(--line)] bg-white rounded-full py-[5px] px-[11px] text-[11.5px] font-medium text-[var(--ink-3)] whitespace-nowrap"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {USER_SEGMENTS.map((segment) => (
+                  <div
+                    key={segment.id}
+                    className="flex items-center gap-2 text-[11px] text-[var(--ink-4)]"
+                  >
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ background: segment.color }}
+                    />
+                    <span className="text-[var(--ink)] font-medium">
+                      {segment.label}
+                    </span>
+                    <span>{segment.share}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-          {/* Input */}
-          <div className="flex gap-2 py-3 px-[14px] items-center">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void send(input);
-              }}
-              placeholder="Ask about signal coverage…"
-              className="flex-1 border border-[var(--line)] rounded-[9px] py-[9px] px-3 text-[13px] outline-none text-[var(--ink)]"
-              style={{ fontFamily: "inherit" }}
-            />
-            <button
-              onClick={() => void send(input)}
-              className="bg-[var(--brand)] text-white border-0 rounded-[9px] w-9 h-9 grid place-items-center"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              >
-                <path d="M5 12h14M13 5l7 7-7 7" />
-              </svg>
-            </button>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {USER_SEGMENTS.map((segment) => (
+                <div
+                  key={segment.id}
+                  className="rounded-2xl border border-[var(--line)] bg-white p-[14px]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-[12px] font-semibold text-[var(--ink)]">
+                      {segment.label}
+                    </div>
+                    <span
+                      className="text-[10px] uppercase tracking-[0.08em] text-[var(--ink-4)]"
+                      style={{ fontFamily: "var(--mono)" }}
+                    >
+                      Priority index
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {PRIORITY_LEGEND.map((legend) => {
+                      const value = segment[legend.key as PriorityKey] as UserSegment[PriorityKey];
+                      return (
+                        <div key={legend.key}>
+                          <div className="flex items-center justify-between text-[10px] text-[var(--ink-4)]">
+                            <span>{legend.label}</span>
+                            <span>{value}</span>
+                          </div>
+                          <div className="mt-1 h-2 w-full rounded-full bg-[var(--tint)]">
+                            <div
+                              className="h-2 rounded-full"
+                              style={{
+                                width: `${value}%`,
+                                background: legend.color,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

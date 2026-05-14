@@ -1,6 +1,6 @@
 // FloatingChatbot.tsx
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 
 import {
   Bot,
@@ -11,9 +11,17 @@ import {
 import SuggestionChips from "./SuggestionChips";
 import ChatbotInput from "./ChatbotInput";
 import ChatbotConversation from "./ChatbotConversation";
-import { submitChatMessage } from "../../libs/api";
+import { ChatbotOrchestrator } from "../../orchestration/chatbotOrchestrator";
+import type { ChatbotInput, FinalChatbotResponse } from "../../orchestration/a2aMessages";
 
-import { Message } from "./types";
+import { AgentType, isAgentType, Message } from "./types";
+
+const resolveAgent = (citation?: string): AgentType => {
+  if (isAgentType(citation)) {
+    return citation;
+  }
+  return "Signal Assistant";
+};
 
 const FloatingChatbot: React.FC = () => {
   const [minimized, setMinimized] = useState(false);
@@ -24,13 +32,15 @@ const FloatingChatbot: React.FC = () => {
     {
       id: 1,
       sender: "assistant",
-      text: "Ask about signal strength, SIM choice, or weak spots. If you name a place (for example Baguio or EDSA), I will use that area for a quick tower-and-report check.",
+      text: "Welcome to SignalPH. Ask about signal strength, SIM choice, or weak spots. Share a place (for example Baguio or EDSA) and I will check nearby towers and community reports.",
       agent: "Signal Assistant",
     },
   ]);
 
-  const [conversationId, setConversationId] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any | null>(null);
+
+  const orchestrator = useMemo(() => new ChatbotOrchestrator(), []);
 
   const suggestions = [
     "Which SIM for Baguio trip?",
@@ -49,7 +59,7 @@ const FloatingChatbot: React.FC = () => {
   };
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
 
     const userMessage: Message = {
       id: Date.now(),
@@ -62,18 +72,23 @@ const FloatingChatbot: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await submitChatMessage(input, conversationId);
-      
-      // Update conversation ID for future messages
-      if (response.conversation_id && !conversationId) {
-        setConversationId(response.conversation_id);
+      const payload: ChatbotInput = {
+        prompt: input,
+        current_analysis_result: analysisResult ?? undefined,
+      };
+
+      const response: FinalChatbotResponse =
+        await orchestrator.answer(payload);
+
+      if (response.analysis_result) {
+        setAnalysisResult(response.analysis_result);
       }
 
       const assistantMessage: Message = {
         id: Date.now() + 1,
         sender: "assistant",
-        text: response.message.text,
-        agent: response.message.citation ?? "Signal Assistant",
+        text: response.answer,
+        agent: resolveAgent("Signal Assistant"),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -84,8 +99,8 @@ const FloatingChatbot: React.FC = () => {
       const errorMessage: Message = {
         id: Date.now() + 1,
         sender: "assistant",
-        text: "I'm having trouble connecting to the service. Please try again later.",
-        agent: "Route Analysis Agent",
+        text: "I could not reach the AI services. Check VITE_LFM_BASE_URL and VITE_API_URL, then try again.",
+        agent: "Signal Assistant",
       };
 
       setMessages((prev) => [...prev, errorMessage]);

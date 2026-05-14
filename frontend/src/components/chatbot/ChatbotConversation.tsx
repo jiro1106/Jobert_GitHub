@@ -14,19 +14,6 @@ const ChatbotConversation: React.FC<Props> = ({
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
 
-      {/* HERO QUESTION */}
-      <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm">
-        <p className="text-sm text-gray-900">
-          Which provider has the best signal between
-          Tarlac and La Union?
-        </p>
-
-        <div className="inline-flex items-center gap-1 rounded-md bg-[#EEF2FF] px-2 py-1 text-[11px] font-medium text-[#3457FF] w-fit mt-2">
-          <Sparkles size={12} />
-          Route Analysis Agent
-        </div>
-      </div>
-
       {/* MESSAGES */}
       {messages.map((message) => {
         const isUser = message.sender === "user";
