@@ -4,7 +4,6 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import ReportPage from "../pages/ReportPage";
-import MapsPage from "../pages/MapsPage";
 import { RouteErrorBoundary } from "../components/ErrorBoundary";
 
 const router = createBrowserRouter([
@@ -12,13 +11,18 @@ const router = createBrowserRouter([
     element: <RootLayout />,
     errorElement: <RouteErrorBoundary />,
     children: [
-      { path: "/", element: <LandingPage />, errorElement: <RouteErrorBoundary /> },
-      { path: "/maps", element: <MapsPage />, errorElement: <RouteErrorBoundary /> },
-      { path: "/login", element: <LoginPage />, errorElement: <RouteErrorBoundary /> },
+      { path: "/", element: <LandingPage /> },
+      { path: "/login", element: <LoginPage /> },
       {
         element: <ProtectedRoute />,
         errorElement: <RouteErrorBoundary />,
-        children: [{ path: "/report", element: <ReportPage />, errorElement: <RouteErrorBoundary /> }],
+        children: [
+          {
+            path: "/report",
+            element: <ReportPage />,
+            errorElement: <RouteErrorBoundary />,
+          },
+        ],
       },
     ],
   },

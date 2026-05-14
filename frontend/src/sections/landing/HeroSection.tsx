@@ -170,11 +170,8 @@ export default function HeroSection() {
             and avoid dead zones before you leave.
           </motion.p>
 
-          {/* Search tabs + card (single stable container) */}
-          <motion.div
-            variants={item}
-            className="min-h-[260px] sm:min-h-[170px]"
-          >
+          {/* Search tabs + card (stable container — grid overlap prevents layout shift) */}
+          <motion.div variants={item}>
             <div
               className="inline-flex bg-white border border-(--line) rounded-[10px] p-1 mb-[10px]"
               role="tablist"
@@ -197,27 +194,61 @@ export default function HeroSection() {
                 </button>
               ))}
             </div>
-            {activeTab === "route" && (
-              <RouteSearchCard
-                fromValue={routeFrom}
-                toValue={routeTo}
-                onFromChange={setRouteFrom}
-                onToChange={setRouteTo}
-                onSubmit={handleForecast}
-                onPickRoute={applyPopularRoute}
-                popularRoutes={popularRoutes}
-              />
-            )}
 
-            {activeTab === "place" && (
-              <PlaceSearchCard
-                value={placeQuery}
-                onChange={setPlaceQuery}
-                onSubmit={handlePlaceCheck}
-              />
-            )}
+            {/*
+              All three panels are always in the DOM, stacked in the same grid cell.
+              The container height is locked to the tallest panel (RouteSearchCard).
+              Inactive panels are invisible and non-interactive — no layout shift.
+            */}
+            <div className="grid">
+              <div
+                style={{ gridArea: "1/1" }}
+                className={`transition-opacity duration-150 ease-in-out ${
+                  activeTab === "route"
+                    ? "opacity-100 pointer-events-auto"
+                    : "opacity-0 pointer-events-none"
+                }`}
+                aria-hidden={activeTab !== "route"}
+              >
+                <RouteSearchCard
+                  fromValue={routeFrom}
+                  toValue={routeTo}
+                  onFromChange={setRouteFrom}
+                  onToChange={setRouteTo}
+                  onSubmit={handleForecast}
+                  onPickRoute={applyPopularRoute}
+                  popularRoutes={popularRoutes}
+                />
+              </div>
 
-            {activeTab === "live" && <LiveCard />}
+              <div
+                style={{ gridArea: "1/1" }}
+                className={`transition-opacity duration-150 ease-in-out ${
+                  activeTab === "place"
+                    ? "opacity-100 pointer-events-auto"
+                    : "opacity-0 pointer-events-none"
+                }`}
+                aria-hidden={activeTab !== "place"}
+              >
+                <PlaceSearchCard
+                  value={placeQuery}
+                  onChange={setPlaceQuery}
+                  onSubmit={handlePlaceCheck}
+                />
+              </div>
+
+              <div
+                style={{ gridArea: "1/1" }}
+                className={`transition-opacity duration-150 ease-in-out ${
+                  activeTab === "live"
+                    ? "opacity-100 pointer-events-auto"
+                    : "opacity-0 pointer-events-none"
+                }`}
+                aria-hidden={activeTab !== "live"}
+              >
+                <LiveCard />
+              </div>
+            </div>
           </motion.div>
         </motion.div>
 

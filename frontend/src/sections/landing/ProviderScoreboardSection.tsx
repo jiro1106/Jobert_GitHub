@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import type { ProviderScore, RouteForecast } from "../../types/coverage";
 import { getProviderScores } from "../../libs/api";
 import type { RouteCoords } from "../../pages/LandingPage";
+import { MOCK_ROUTE_FORECAST } from "../../types/coverage";
+import { PROVIDERS } from "../../constants/providers";
 
 type Scope = "route" | "dest" | "origin";
 
@@ -11,7 +13,10 @@ interface Props {
   forecast: RouteForecast | null;
 }
 
-export default function ProviderScoreboardSection({ activeRoute, forecast }: Props) {
+export default function ProviderScoreboardSection({
+  activeRoute,
+  forecast,
+}: Props) {
   const [activeScope, setActiveScope] = useState<Scope>("route");
   const [providers, setProviders] = useState<ProviderScore[]>([]);
   const [loading, setLoading] = useState(false);
@@ -59,7 +64,7 @@ export default function ProviderScoreboardSection({ activeRoute, forecast }: Pro
           activeRoute.destLat,
           activeRoute.destLng,
           activeScope,
-          { signal: ac.signal }
+          { signal: ac.signal },
         );
         if (ac.signal.aborted) return;
         if (response?.providers?.length > 0) {
@@ -88,7 +93,11 @@ export default function ProviderScoreboardSection({ activeRoute, forecast }: Pro
   const bestScore = hasData ? Math.max(...providers.map((p) => p.score)) : -1;
 
   return (
-    <section id="providers" className="block" data-section="provider-scoreboard">
+    <section
+      id="providers"
+      className="block"
+      data-section="provider-scoreboard"
+    >
       <div className="block-head">
         <div>
           <div className="eyebrow">02 · Provider scorecard</div>
@@ -149,12 +158,20 @@ export default function ProviderScoreboardSection({ activeRoute, forecast }: Pro
             background: "var(--surface)",
           }}
         >
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg
+            width="40"
+            height="40"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
             <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13V7m0 13 6-3M9 7l6-3m0 16 5.447-2.724A1 1 0 0 0 21 16.382V5.618a1 1 0 0 0-1.447-.894L15 7m0 13V7" />
           </svg>
           <div style={{ fontWeight: 600, fontSize: 15 }}>No route selected</div>
           <div style={{ fontSize: 13 }}>
-            Select a route on the map above to compare provider scores side-by-side.
+            Select a route on the map above to compare provider scores
+            side-by-side.
           </div>
         </div>
       )}
@@ -174,10 +191,40 @@ export default function ProviderScoreboardSection({ activeRoute, forecast }: Pro
                 animation: "pulse 1.5s ease-in-out infinite",
               }}
             >
-              <div style={{ background: "#EEF1F7", borderRadius: 8, height: 20, width: "60%", marginBottom: 12 }} />
-              <div style={{ background: "#EEF1F7", borderRadius: 8, height: 40, width: "40%", marginBottom: 16 }} />
-              <div style={{ background: "#EEF1F7", borderRadius: 8, height: 32, marginBottom: 12 }} />
-              <div style={{ background: "#EEF1F7", borderRadius: 8, height: 16, width: "80%" }} />
+              <div
+                style={{
+                  background: "#EEF1F7",
+                  borderRadius: 8,
+                  height: 20,
+                  width: "60%",
+                  marginBottom: 12,
+                }}
+              />
+              <div
+                style={{
+                  background: "#EEF1F7",
+                  borderRadius: 8,
+                  height: 40,
+                  width: "40%",
+                  marginBottom: 16,
+                }}
+              />
+              <div
+                style={{
+                  background: "#EEF1F7",
+                  borderRadius: 8,
+                  height: 32,
+                  marginBottom: 12,
+                }}
+              />
+              <div
+                style={{
+                  background: "#EEF1F7",
+                  borderRadius: 8,
+                  height: 16,
+                  width: "80%",
+                }}
+              />
             </div>
           ))}
         </div>
@@ -221,17 +268,13 @@ function ProviderCard({
     if (!data.length) return;
     const max = Math.max(...data, 1);
     while (el.firstChild) el.removeChild(el.firstChild);
-    data.forEach((v) => {
+    const baseColor = PROVIDERS[provider.provider]?.color ?? "#94A3B8";
+    provider.sparklineData.forEach((v) => {
       const s = document.createElement("span");
       const h = Math.max(3, (v / max) * 32);
       s.style.height = h + "px";
       s.style.borderRadius = "2px";
-      const colorMap: Record<string, string> = {
-        globe: "#1F4FFFcc",
-        smart: "#E11D48aa",
-        dito: "#4F46E599",
-      };
-      s.style.background = colorMap[provider.provider] ?? "#94A3B8";
+      s.style.background = baseColor + "bb";
       el.appendChild(s);
     });
   }, [provider]);
@@ -261,8 +304,12 @@ function ProviderCard({
 
       <div className="flex items-center justify-between mb-[14px]">
         <div className="flex items-center gap-2.5">
-          <div className={`prov-tile ${provider.provider}`}>
-            {provider.name[0]}
+          <div className="prov-tile">
+            <img
+              src={PROVIDERS[provider.provider]?.logo}
+              alt={provider.name}
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            />
           </div>
           <div>
             <div className="text-[15px] font-bold">{provider.name}</div>

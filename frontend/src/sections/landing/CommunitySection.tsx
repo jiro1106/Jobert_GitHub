@@ -97,9 +97,11 @@ export default function CommunitySection() {
               ))}
             </ul>
             <div className="flex gap-2">
-              <button className="btn btn-brand">Notify me</button>
-              <button className="btn bg-transparent! text-white! border-[#334155]!">
-                Learn more
+              <button
+                className="btn btn-brand"
+                onClick={() => alert("Thanks! We'll notify you when the app launches.")}
+              >
+                Notify me
               </button>
             </div>
           </div>
@@ -141,7 +143,7 @@ function ActionTile({
   subtitle: string;
 }) {
   return (
-    <div className="border border-(--line) rounded-[12px] p-5 bg-(--tint) cursor-pointer transition-[border-color,background] duration-120 hover:border-(--brand-mid) hover:bg-white">
+    <div className="border border-(--line) rounded-[12px] p-5 bg-(--tint)">
       <div className="w-8 h-8 rounded-lg bg-white border border-(--line) grid place-items-center text-(--brand) mb-3.5">
         {icon}
       </div>

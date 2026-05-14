@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link, useLocation } from "react-router";
 import logo from "../assets/full_logo.png";
 
 const NAV_LINKS = [
@@ -10,6 +11,9 @@ const NAV_LINKS = [
 ];
 
 export default function Navbar() {
+  const { pathname } = useLocation();
+  const isLanding = pathname === "/";
+
   const [isOpen, setIsOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("");
   const isScrollingRef = useRef(false);
@@ -65,6 +69,54 @@ export default function Navbar() {
     scrollTimerRef.current = setTimeout(() => {
       isScrollingRef.current = false;
     }, 1000);
+  }
+
+  if (!isLanding) {
+    return (
+      <nav
+        style={{
+          height: 80,
+          background: "rgba(255,255,255,0.92)",
+          backdropFilter: "blur(10px)",
+          borderBottom: "1px solid var(--line)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 16px",
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+        }}
+        className="md:!px-7"
+      >
+        <Link to="/" style={{ display: "inline-flex", alignItems: "center" }}>
+          <img src={logo} alt="SignalPH Logo" style={{ height: 80, width: "auto" }} />
+        </Link>
+        <Link
+          to="/"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            color: "var(--ink-3)",
+            padding: "6px 12px",
+            borderRadius: 6,
+            border: "1px solid var(--line)",
+            background: "white",
+            cursor: "pointer",
+            textDecoration: "none",
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 19 5 12 12 5" />
+          </svg>
+          Back to Home
+        </Link>
+      </nav>
+    );
   }
 
   return (
