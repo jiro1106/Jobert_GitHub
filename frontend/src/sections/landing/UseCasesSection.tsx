@@ -94,9 +94,6 @@ export default function UseCasesSection() {
                   <div className="text-[13.5px] font-semibold text-[var(--ink)]">
                     {uc.title}
                   </div>
-                  <div className="text-[11.5px] text-[var(--ink-4)] mt-px">
-                    {uc.subtitle}
-                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 font-bold text-[13px]">
@@ -138,7 +135,9 @@ export default function UseCasesSection() {
                 <div className="text-[12px] font-semibold text-[var(--ink)]">
                   User mix by trip type
                 </div>
-                <div className="text-[10px] text-[var(--ink-4)]">% of chats</div>
+                <div className="text-[10px] text-[var(--ink-4)]">
+                  % of chats
+                </div>
               </div>
 
               <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-white border border-[var(--line)] flex">
@@ -192,7 +191,9 @@ export default function UseCasesSection() {
 
                   <div className="mt-3 space-y-2">
                     {PRIORITY_LEGEND.map((legend) => {
-                      const value = segment[legend.key as PriorityKey] as UserSegment[PriorityKey];
+                      const value = segment[
+                        legend.key as PriorityKey
+                      ] as UserSegment[PriorityKey];
                       return (
                         <div key={legend.key}>
                           <div className="flex items-center justify-between text-[10px] text-[var(--ink-4)]">

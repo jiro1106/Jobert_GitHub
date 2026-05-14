@@ -249,6 +249,10 @@
   background: var(--ink);
   color: white;
 }
+.seg button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
 
 /* --- Net tag --- */
 .net-tag {
@@ -412,11 +416,11 @@
 
 /* --- Section block --- */
 .block {
-  margin-top: 36px;
+  margin-top: 64px;
 }
 @media (min-width: 768px) {
   .block {
-    margin-top: 48px;
+    margin-top: 96px;
   }
 }
 .block-head {

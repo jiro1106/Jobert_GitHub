@@ -71,7 +71,7 @@ export default function Footer() {
             }}
           >
             Predictive, route-based mobile network coverage estimation for the
-            Philippines. Built with NTC data and community readings.
+            Philippines. Built with OpenCellID data and community readings.
           </p>
         </div>
 

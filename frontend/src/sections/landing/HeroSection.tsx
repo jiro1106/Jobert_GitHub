@@ -133,7 +133,7 @@ export default function HeroSection() {
     >
       {/* Grid background */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-0 pointer-events-none hero-grid"
         style={{
           backgroundImage:
             "linear-gradient(rgba(0,0,0,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.08) 1px, transparent 1px)",
@@ -154,7 +154,17 @@ export default function HeroSection() {
           >
             Know your signal,
             <br />
-            <em className="not-italic text-[var(--brand)] relative">
+            <em
+              className="not-italic relative"
+              style={{
+                backgroundImage:
+                  "linear-gradient(110deg, var(--brand) 0%, #4F6BFF 45%, #3D5AFF 100%)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                color: "transparent",
+              }}
+            >
               before you travel
               <span className="absolute left-0 right-0 -bottom-0.5 h-0.5 bg-[var(--brand)] opacity-[0.18] rounded-sm" />
             </em>
@@ -261,6 +271,16 @@ export default function HeroSection() {
       <style>{`
         @media (min-width: 980px) {
           .hero-right-col { display: block !important; }
+        }
+        @keyframes hero-grid-drift {
+          from { background-position: 0 0; }
+          to { background-position: 32px 32px; }
+        }
+        .hero-grid {
+          animation: hero-grid-drift 5s linear infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hero-grid { animation: none; }
         }
       `}</style>
     </section>
