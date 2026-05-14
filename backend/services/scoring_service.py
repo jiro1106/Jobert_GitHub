@@ -109,50 +109,128 @@ def detect_weak_segments(
     route_points: list[dict[str, Any]],
     closest_towers: list[dict[str, Any]],
     weak_threshold: float = 45.0,
+    merge_gap_km: float = 1.0,
 ) -> list[dict[str, Any]]:
-    # find spots on route where best available tower score is below 45
+    """
+    Identify contiguous signal-gap patches along the route.
 
+    Algorithm:
+    1. Find the best tower match (by signal_score) for each route point.
+    2. Flag each point as weak if its best score is below `weak_threshold`
+       or it has no tower match at all.
+    3. Merge consecutive weak points that are within `merge_gap_km` of each
+       other into a single patch — so a 10-point stretch of weak coverage
+       becomes ONE gap, not ten separate entries.
+    4. Return patches sorted by patch size (km_end - km_start) descending
+       so the largest gaps come first.
+
+    Each returned patch dict has:
+      point_order   – order of the first weak point in the patch
+      km_start      – km from origin where the gap begins
+      km_end        – km from origin where the gap ends
+      distance_km   – km_start (for backward compat with response_transformer)
+      latitude      – midpoint latitude of the patch
+      longitude     – midpoint longitude of the patch
+      provider_name – name of the best (but still weak) tower, or None
+      signal_score  – worst (minimum) score seen within the patch
+      reason        – human-readable reason string
+    """
+    # ── Step 1: best match per route point ───────────────────────────────────
     best_match_by_point: dict[int, dict[str, Any]] = {}
-
     for match in closest_towers:
-        point_order = int(match.get("route_point_order", 0))
-        current_best = best_match_by_point.get(point_order)
+        pt = int(match.get("route_point_order", 0))
+        cur = best_match_by_point.get(pt)
+        if cur is None or match.get("signal_score", 0.0) > cur.get("signal_score", 0.0):
+            best_match_by_point[pt] = match
 
-        if current_best is None or match.get("signal_score", 0.0) > current_best.get("signal_score", 0.0):
-            best_match_by_point[point_order] = match
+    # ── Step 2: tag each route point ────────────────────────────────────────
+    # Each entry: (point_order, km_from_origin, lat, lng, score, reason, provider)
+    tagged: list[tuple[int, float, float, float, float, str, str | None]] = []
+    for idx, point in enumerate(route_points, start=1):
+        pt = int(point.get("point_order", idx))
+        lat = float(point.get("latitude", 0))
+        lng = float(point.get("longitude", 0))
+        km  = float(point.get("distance_from_origin_m", 0)) / 1000.0
+        match = best_match_by_point.get(pt)
 
-    weak_segments = []
+        if match is None:
+            tagged.append((pt, km, lat, lng, 0.0,
+                           "No nearby tower found within the search radius.", None))
+        elif float(match.get("signal_score", 0.0)) < weak_threshold:
+            tagged.append((pt, km, lat, lng, float(match.get("signal_score", 0.0)),
+                           "Best available tower match is below the weak-signal threshold.",
+                           match.get("provider_name")))
 
-    for index, point in enumerate(route_points, start=1):
-        point_order = int(point.get("point_order", index))
-        best_match = best_match_by_point.get(point_order)
+    if not tagged:
+        return []
 
-        if best_match is None:
-            weak_segments.append(
-                {
-                    "point_order": point_order,
-                    "latitude": point.get("latitude"),
-                    "longitude": point.get("longitude"),
-                    "provider_name": None,
-                    "signal_score": 0.0,
-                    "reason": "No nearby tower found within the search radius.",
-                }
+    # ── Step 3: merge consecutive points into patches ────────────────────────
+    # Two points belong to the same patch if the km gap between them ≤ merge_gap_km.
+    patches: list[dict[str, Any]] = []
+    # current patch accumulators
+    p_start_order, p_start_km, p_lats, p_lngs, p_scores, p_reason, p_provider = (
+        tagged[0][0], tagged[0][1], [tagged[0][2]], [tagged[0][3]],
+        [tagged[0][4]], tagged[0][5], tagged[0][6],
+    )
+    p_end_km = tagged[0][1]
+
+    for i in range(1, len(tagged)):
+        pt, km, lat, lng, score, reason, provider = tagged[i]
+        if km - p_end_km <= merge_gap_km:
+            # extend current patch
+            p_lats.append(lat)
+            p_lngs.append(lng)
+            p_scores.append(score)
+            p_end_km = km
+            # Keep the worst reason (no-tower wins over below-threshold)
+            if "No nearby tower" in reason:
+                p_reason = reason
+        else:
+            # save current patch, start new one
+            _flush_patch(patches, p_start_order, p_start_km, p_end_km,
+                         p_lats, p_lngs, p_scores, p_reason, p_provider)
+            p_start_order, p_start_km, p_lats, p_lngs, p_scores, p_reason, p_provider = (
+                pt, km, [lat], [lng], [score], reason, provider,
             )
-            continue
+            p_end_km = km
 
-        if best_match.get("signal_score", 0.0) < weak_threshold:
-            weak_segments.append(
-                {
-                    "point_order": point_order,
-                    "latitude": point.get("latitude"),
-                    "longitude": point.get("longitude"),
-                    "provider_name": best_match.get("provider_name"),
-                    "signal_score": best_match.get("signal_score"),
-                    "reason": "Best available tower match is below the weak-signal threshold.",
-                }
-            )
+    # flush the last patch
+    _flush_patch(patches, p_start_order, p_start_km, p_end_km,
+                 p_lats, p_lngs, p_scores, p_reason, p_provider)
 
-    return weak_segments
+    # ── Step 4: sort by patch size descending (largest gap first) ────────────
+    patches.sort(key=lambda p: p["km_end"] - p["km_start"], reverse=True)
+    return patches
+
+
+def _flush_patch(
+    patches: list[dict[str, Any]],
+    start_order: int,
+    km_start: float,
+    km_end: float,
+    lats: list[float],
+    lngs: list[float],
+    scores: list[float],
+    reason: str,
+    provider: str | None,
+) -> None:
+    """Commit a collected patch to the patches list."""
+    mid_lat = sum(lats) / len(lats)
+    mid_lng = sum(lngs) / len(lngs)
+    worst_score = min(scores)
+    patches.append({
+        "point_order":   start_order,
+        "km_start":      round(km_start, 2),
+        "km_end":        round(max(km_end, km_start + 0.05), 2),   # always > 0 width
+        "distance_km":   round(km_start, 2),   # backward compat alias
+        "latitude":      round(mid_lat, 6),
+        "longitude":     round(mid_lng, 6),
+        "provider_name": provider,
+        "signal_score":  round(worst_score, 2),
+        "reason":        reason,
+    })
+
+
 
 
 def _data_confidence_factor(tower_match_count: int, total_route_points: int) -> float:

@@ -9,6 +9,7 @@ import { getRouteForecast } from "../../libs/api";
 import { ArrowRight } from "lucide-react";
 import type { RouteCoords } from "../../pages/LandingPage";
 import { PROVIDERS } from "../../constants/providers";
+import SignalGapCard from "../../components/map/ui/SignalGapCard";
 
 /* ============================================================
    MapSection — Route Forecast block
@@ -183,6 +184,7 @@ export default function MapSection({
           initialDestinationText={toParam || undefined}
           onRouteMetrics={setMapRouteMetrics}
           onRouteCoordinates={handleRouteCoordinates}
+          height={500}
         />
         <RouteSidebar
           forecast={forecast}
@@ -204,6 +206,7 @@ function MapCard({
   initialDestinationText,
   onRouteMetrics,
   onRouteCoordinates,
+  height = 1000,
 }: {
   initialOriginText?: string;
   initialDestinationText?: string;
@@ -218,6 +221,7 @@ function MapCard({
       destName: string;
     } | null,
   ) => void;
+  height?: number;
 }) {
   return (
     <div
@@ -228,9 +232,11 @@ function MapCard({
         overflow: "hidden",
         position: "relative",
         boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+        height,
       }}
     >
-      <div style={{ position: "relative", height: 500 }}>
+      {/* height: 100% so MapComponent fills the card */}
+      <div style={{ position: "relative", height: "100%" }}>
         <MapComponent
           initialOriginText={initialOriginText}
           initialDestinationText={initialDestinationText}
@@ -423,7 +429,8 @@ function RouteSidebar({
         </div>
       </div>
 
-      {/* Recommended SIM */}
+      {/* Recommended SIM — only shown when recommendation data is available */}
+      {recommendation && (
       <div className="panel">
         <div className="panel-head">
           <div className="panel-title">
@@ -449,8 +456,8 @@ function RouteSidebar({
             }}
           >
             <img
-              src={PROVIDERS[recommendation.provider]?.logo}
-              alt={recommendation.name}
+              src={PROVIDERS[recommendation?.provider]?.logo}
+              alt={recommendation?.name ?? ""}
               style={{ width: "100%", height: "100%", objectFit: "contain" }}
             />
           </div>
@@ -487,13 +494,14 @@ function RouteSidebar({
           </div>
         </div>
       </div>
+      )}
 
-      {/* Signal gaps */}
+      {/* Signal gaps — top 3 largest merged patches */}
       <div className="panel">
         <div className="panel-head">
           <div className="panel-title">
             <WarningIcon />
-            Signal gaps detected
+            Largest signal gaps
           </div>
           <span
             style={{
@@ -502,55 +510,30 @@ function RouteSidebar({
               color: "var(--ink-4)",
             }}
           >
-            {gaps.length} found
+            {gaps.length} gap{gaps.length !== 1 ? "s" : ""} detected
           </span>
         </div>
-        <div>
-          {gaps.map((gap, i) => (
-            <div
-              key={gap.id}
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 12,
-                padding: "12px 18px",
-                borderTop: i === 0 ? 0 : "1px solid var(--line-soft)",
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: "var(--mono)",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "var(--ink-4)",
-                  width: 48,
-                  flexShrink: 0,
-                  paddingTop: 1,
-                }}
-              >
-                km {gap.km}
-              </div>
-              <div
-                className={`gap-icon ${gap.level === "patchy" ? "warn" : ""}`}
-              >
-                {gap.level === "dead" ? <XSmallIcon /> : <WarnSmallIcon />}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}
-                >
-                  {gap.name}
-                </div>
-                <div
-                  style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 1 }}
-                >
-                  {gap.description}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+
+        {gaps.length === 0 ? (
+          <div
+            style={{
+              padding: "20px 18px",
+              fontSize: 13,
+              color: "var(--ink-4)",
+              textAlign: "center",
+            }}
+          >
+            No significant signal gaps detected along this route 🎉
+          </div>
+        ) : (
+          <div>
+            {gaps.slice(0, 3).map((gap, i) => (
+              <SignalGapCard key={gap.id} gap={gap} isFirst={i === 0} />
+            ))}
+          </div>
+        )}
       </div>
+
     </div>
   );
 }

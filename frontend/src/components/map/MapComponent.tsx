@@ -186,6 +186,8 @@ const MapComponent: React.FC<Props> = ({
     lng: number;
     signal_strength?: number;
     distance_km?: number;
+    /** Raw OpenCellID signal range in metres. */
+    range_meters?: number;
   };
   const [liveTowers, setLiveTowers] = useState<LiveTower[]>([]);
   const liveFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -203,6 +205,7 @@ const MapComponent: React.FC<Props> = ({
         lng: t.longitude,
         signal_strength: t.signal_strength,
         distance_km: t.distance_km,
+        range_meters: t.range_meters,
       })));
     } catch {
       // Silently ignore — backend may not be running
@@ -276,7 +279,13 @@ const MapComponent: React.FC<Props> = ({
         signal: typeof t.signal_strength === 'number'
           ? Math.min(1, Math.max(0, t.signal_strength / 100))
           : 0.5,
-        radiusMeters: 500,
+        // Use real OpenCellID range; fall back to sensible defaults by technology type.
+        // Typical ranges: LTE/4G ~2–5 km, UMTS/3G ~1–3 km, GSM/2G ~5–15 km, 5G <500 m.
+        radiusMeters: (() => {
+          const raw = t.range_meters;
+          if (raw && raw > 50) return raw; // trust any non-trivial real value
+          return 2000; // generic fallback (~2 km) when DB has no range data
+        })(),
       }))
     : [];
 
@@ -329,12 +338,10 @@ const MapComponent: React.FC<Props> = ({
     }, []);
 
   return (
-    <FullscreenMap>
+    <FullscreenMap normalHeight="100%">
       {({ isFullscreen, mapContainerStyle, toggleFullscreen }) => (
-        <div
-          className={isFullscreen ? 'relative h-screen w-screen' : 'relative'}
-          style={isFullscreen ? { height: '100vh', width: '100vw' } : undefined}
-        >
+        // FullscreenMap owns the fullscreen overlay — this div just fills it.
+        <div className="relative h-full w-full">
           {/* ── Top-right controls ───────────────────────────────────────────── */}
           <MapControls
             mapType={mapType}
@@ -366,17 +373,18 @@ const MapComponent: React.FC<Props> = ({
 
           <MapSizeObserver map={mapInstance} isFullscreen={isFullscreen} />
 
-          {/* ── Map ──────────────────────────────────────────────────────────── */}
-          <MapContainer
-            center={[mapCenter.lat, mapCenter.lng]}
-            zoom={mapZoom}
-            style={{
-              width: '100%',
-              ...mapContainerStyle,
-            }}
-            zoomControl={false}
-            className="z-0 w-full"
-          >
+          {/* ── Map ────────────────────────────────────────────────────────── */}
+          {/* Absolute fill — takes the exact dimensions of the relative parent.
+               This is more reliable than height:'100%' chains through Leaflet's
+               own CSS, which can fight flex/block height resolution. */}
+          <div className="absolute inset-0">
+            <MapContainer
+              center={[mapCenter.lat, mapCenter.lng]}
+              zoom={mapZoom}
+              style={{ width: '100%', height: '100%' }}
+              zoomControl={false}
+              className="z-0"
+            >
             <TileLayer
               url={tileLayer.url}
               attribution={tileLayer.attribution}
@@ -390,9 +398,13 @@ const MapComponent: React.FC<Props> = ({
               onMoveEnd={handleMapMoveEnd}
             />
 
-            {/* Heatmap + tower icons */}
-            {showLayers && showHeatmap && (
-              <HeatmapLayer towers={filteredTowers} zoom={mapZoom} />
+            {/* Coverage layer — circles mode or signal heatmap mode */}
+            {showLayers && (
+              <HeatmapLayer
+                towers={filteredTowers}
+                zoom={mapZoom}
+                mode={showHeatmap ? "heatmap" : "circles"}
+              />
             )}
             {showLayers && visibleTowers.map((tower) => {
               const colors = PROVIDER_COLORS[tower.provider];
@@ -527,6 +539,7 @@ const MapComponent: React.FC<Props> = ({
               })
             }
           </MapContainer>
+          </div>{/* end absolute fill */}
 
           {/* ── Provider Filter ───────────────────────────────────────────────── */}
           <ProviderFilters

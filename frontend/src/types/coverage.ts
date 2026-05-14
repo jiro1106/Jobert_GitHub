@@ -29,6 +29,7 @@ export interface RouteEndpoint {
 export interface SignalGap {
   id: string;
   km: number;
+  km_end?: number;
   level: "dead" | "patchy";
   name: string;
   description: string;

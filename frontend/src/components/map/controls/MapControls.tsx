@@ -1,5 +1,5 @@
 import React from "react";
-import { Layers, Maximize2, Minimize2, Navigation, RadioTower, Thermometer } from "lucide-react";
+import { CircleDot, Layers, Maximize2, Minimize2, Navigation, RadioTower, Thermometer } from "lucide-react";
 
 type MapType = "roadmap" | "satellite" | "terrain";
 
@@ -89,11 +89,13 @@ const MapControls: React.FC<Props> = ({
         <button
             onClick={onToggleHeatmap}
             className={`cursor-pointer bg-white backdrop-blur-sm p-2 rounded-lg shadow-sm border transition-all ${
-                showHeatmap ? "border-[#2B67EB] text-[#2B67EB]" : "border-gray-100 text-gray-400 hover:text-gray-600"
+                showHeatmap
+                    ? "border-orange-400 text-orange-500 bg-orange-50"
+                    : "border-[#2563EB] text-[#2563EB] bg-blue-50"
             }`}
-            title={showHeatmap ? "Heatmap view" : "Circle view"}
+            title={showHeatmap ? "Heatmap mode — click for coverage circles" : "Coverage circles mode — click for heatmap"}
         >
-            <Thermometer size={14} />
+            {showHeatmap ? <Thermometer size={14} /> : <CircleDot size={14} />}
         </button>
 
         <button

@@ -52,6 +52,8 @@ export interface CellTower {
   provider: string;
   signal_strength?: number;
   distance_km?: number;
+  /** Raw OpenCellID range in metres — undefined when not available. */
+  range_meters?: number;
 }
 
 /**
@@ -288,6 +290,8 @@ type TowerApiRow = {
   longitude: number;
   provider_name?: string | null;
   average_signal?: number | null;
+  /** Signal coverage radius from OpenCellID (may be null/0 for some records). */
+  range_meters?: number | null;
 };
 
 type ReportApiRow = {
@@ -334,6 +338,7 @@ export async function getNearbyTowers(
       provider: t.provider_name ?? 'Unknown',
       signal_strength: t.average_signal ?? undefined,
       distance_km: haversineKm(latitude, longitude, t.latitude, t.longitude),
+      range_meters: t.range_meters ?? undefined,
     })),
     center: { latitude, longitude },
     search_radius_km: radius_km,

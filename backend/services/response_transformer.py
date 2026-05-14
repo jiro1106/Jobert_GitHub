@@ -94,31 +94,59 @@ def transform_route_analysis_to_forecast(raw_analysis: dict[str, Any]) -> dict[s
     else:
         strong_signal_pct = 80.0
 
-    # Format gaps from weak_segments (scoring_service uses signal_score + reason, not signal_level)
+    # ── Build frontend gap objects from merged patches ────────────────────────
+    # weak_segments is already sorted by patch size (largest first) by scoring_service.
+    # Each patch has: km_start, km_end, signal_score, reason, provider_name.
     gaps: list[dict[str, Any]] = []
-    for gap_idx, gap in enumerate(weak_segments[:5]):
-        point_order = int(gap.get("point_order", gap_idx + 1))
-        km = float(gap.get("distance_km")) if gap.get("distance_km") is not None else _km_from_point_order(
-            route_points, point_order
-        )
-        reason = str(gap.get("reason", "") or "")
-        signal_score = gap.get("signal_score")
-        no_tower = gap.get("provider_name") is None and "no nearby tower" in reason.lower()
+    origin_name  = route_context.get("origin_name", "Origin")
+    dest_name    = route_context.get("destination_name", "Destination")
+    total_km     = max(total_distance_km, 1.0)
+
+    for gap_idx, patch in enumerate(weak_segments):
+        km_start = float(patch.get("km_start") or patch.get("distance_km") or 0.0)
+        km_end   = float(patch.get("km_end")   or km_start + 1.0)
+        # Ensure km_end > km_start by at least 0.05 km
+        km_end   = max(km_end, km_start + 0.05)
+
+        reason       = str(patch.get("reason", "") or "")
+        signal_score = patch.get("signal_score")
+        no_tower     = patch.get("provider_name") is None and "no nearby tower" in reason.lower()
         try:
             score_f = float(signal_score) if signal_score is not None else None
         except (TypeError, ValueError):
             score_f = None
-        if no_tower or (score_f is not None and score_f < 12.0):
-            level = "dead"
+
+        level = "dead" if (no_tower or (score_f is not None and score_f < 12.0)) else "patchy"
+
+        # Position as fraction of total route (use midpoint of patch)
+        pct = ((km_start + km_end) / 2.0) / total_km
+        if pct < 0.15:
+            area_name = f"Near {origin_name} departure stretch"
+        elif pct < 0.40:
+            area_name = f"Early segment — between {origin_name} and {dest_name}"
+        elif pct < 0.60:
+            area_name = f"Mid-route — between {origin_name} and {dest_name}"
+        elif pct < 0.85:
+            area_name = f"Approaching {dest_name}"
         else:
-            level = "patchy"
+            area_name = f"Near {dest_name} arrival stretch"
+
+        gap_size_km = round(km_end - km_start, 2)
+        description = (
+            f"{reason} "
+            f"({'Dead zone' if level == 'dead' else 'Patchy signal'}, "
+            f"{gap_size_km:.1f} km)"
+        ).strip()
+
         gaps.append({
-            "id": f"g{gap_idx + 1}",
-            "km": round(km, 1),
-            "level": level,
-            "name": gap.get("name") or f"Route km {round(km, 1)}",
-            "description": reason or "Tower match is weak along this segment.",
+            "id":          f"g{gap_idx + 1}",
+            "km":          round(km_start, 1),
+            "km_end":      round(km_end, 1),
+            "level":       level,
+            "name":        area_name,
+            "description": description,
         })
+
 
     # Format providers list in canonical display order
     providers = []
@@ -179,6 +207,10 @@ def transform_route_analysis_to_forecast(raw_analysis: dict[str, Any]) -> dict[s
         best_provider_display = str(top["name"])
         best_score = float(top["score"])
 
+    # Sort gaps: dead zones first, then by gap width (largest first); expose top 3
+    gaps.sort(key=lambda g: (0 if g["level"] == "dead" else 1, -(g["km_end"] - g["km"])))
+    top_gaps = gaps[:3]
+
     return {
         "origin": {
             "label": route_context.get("origin_name", "Origin"),
@@ -202,7 +234,7 @@ def transform_route_analysis_to_forecast(raw_analysis: dict[str, Any]) -> dict[s
             "reason": _generate_recommendation_reason(best_provider_display, gaps),
             "score": round(best_score, 1),
         },
-        "gaps": gaps,
+        "gaps": top_gaps,
         "providers": providers,
     }
 

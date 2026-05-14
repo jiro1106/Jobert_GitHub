@@ -15,24 +15,24 @@ export type ProviderColors = Record<Exclude<Provider, "All">, ProviderStyle>;
 
 export const PROVIDER_COLORS: ProviderColors = {
   Globe: {
-    solid: "#1D4ED8",
-    light: "#DBEAFE",
+    solid: "#2563EB",   // vivid blue
+    light: "#BFDBFE",
   },
   Smart: {
-    solid: "#C90A11",
-    light: "#FFFE93",
+    solid: "#16A34A",   // vivid green
+    light: "#BBF7D0",
   },
   DITO: {
-    solid: "#16A34A",
-    light: "#DCFCE7",
+    solid: "#DC2626",   // vivid red
+    light: "#FECACA",
   },
   SUN: {
-    solid: "#DC2626",
-    light: "#FEE2E2",
+    solid: "#EA580C",   // vivid orange
+    light: "#FED7AA",
   },
   TM: {
-    solid: "#0C1281",
-    light: "#F2E126",
+    solid: "#CA8A04",   // vivid amber/yellow
+    light: "#FEF08A",
   },
 };
 
@@ -41,17 +41,16 @@ export const PROVIDER_FILTER_STYLES: Record<
   ProviderFilterStyle
 > = {
   All: {
-    active: "bg-[#2B67EB] text-white border-[#2B67EB]",
+    active: "bg-[#2563EB] text-white border-[#2563EB]",
     inactive:
       "bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300",
   },
   Globe: {
-    active: "bg-[#1D4ED8] text-white border-[#1D4ED8]",
+    active: "bg-[#2563EB] text-white border-[#2563EB]",
     inactive:
       "bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300",
   },
   Smart: {
-
     active: "bg-[#16A34A] text-white border-[#16A34A]",
     inactive:
       "bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300",
@@ -62,12 +61,12 @@ export const PROVIDER_FILTER_STYLES: Record<
       "bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300",
   },
   SUN: {
-    active: "bg-[#FFFE93] text-[#C90A11] border-[#FFFE93]",
+    active: "bg-[#EA580C] text-white border-[#EA580C]",
     inactive:
       "bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300",
   },
   TM: {
-    active: "bg-[#0C1281] text-[#F2E126] border-[#0C1281]",
+    active: "bg-[#CA8A04] text-white border-[#CA8A04]",
     inactive:
       "bg-white/90 text-gray-700 border-gray-200 hover:border-gray-300",
   },
@@ -78,33 +77,33 @@ export const PROVIDER_HEATMAP_COLORS: Record<
   Color[]
 > = {
   Globe: [
-    [29, 78, 216, 0],
-    [29, 78, 216, 80],
-    [29, 78, 216, 160],
-    [29, 78, 216, 255],
+    [37, 99, 235, 0],
+    [37, 99, 235, 80],
+    [37, 99, 235, 160],
+    [37, 99, 235, 255],
   ],
   Smart: [
-    [220, 38, 38, 0],
-    [220, 38, 38, 80],
-    [220, 38, 38, 160],
-    [220, 38, 38, 255],
-  ],
-  DITO: [
     [22, 163, 74, 0],
     [22, 163, 74, 80],
     [22, 163, 74, 160],
     [22, 163, 74, 255],
   ],
+  DITO: [
+    [220, 38, 38, 0],
+    [220, 38, 38, 80],
+    [220, 38, 38, 160],
+    [220, 38, 38, 255],
+  ],
   SUN: [
-    [201, 10, 17, 0],
-    [201, 10, 17, 80],
-    [201, 10, 17, 160],
-    [201, 10, 17, 255],
+    [234, 88, 12, 0],
+    [234, 88, 12, 80],
+    [234, 88, 12, 160],
+    [234, 88, 12, 255],
   ],
   TM: [
-    [12, 18, 129, 0],
-    [12, 18, 129, 80],
-    [12, 18, 129, 160],
-    [12, 18, 129, 255],
+    [202, 138, 4, 0],
+    [202, 138, 4, 80],
+    [202, 138, 4, 160],
+    [202, 138, 4, 255],
   ],
 };
