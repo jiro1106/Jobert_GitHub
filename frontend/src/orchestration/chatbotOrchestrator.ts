@@ -1,24 +1,22 @@
 import { LFMClient } from "../ai/lfmClient";
 import { RouterAgent } from "../agents/routerAgent";
-import { SimRecommenderAgent } from "../agents/simRecommenderAgent";
-import { CoverageExplainerAgent } from "../agents/coverageExplainerAgent";
-import { ReportSummarizerAgent } from "../agents/reportSummarizerAgent";
-import { TowerMapperAgent } from "../agents/towerMapperAgent";
-import { OfflineReadinessAgent } from "../agents/offlineReadinessAgent";
-import { AnomalyAgent } from "../agents/anomalyAgent";
 import { FinalAnswerAgent } from "../agents/finalAnswerAgent";
 import { executeToolCalls } from "./toolExecutor";
 import type {
-  AgentOutputs,
   ChatbotInput,
   FinalChatbotResponse,
+  RouterPlan,
+  ToolExecutionResult,
 } from "./a2aMessages";
 
 function createTraceId() {
   return crypto.randomUUID?.() || `trace-${Date.now()}`;
 }
 
-function getPrimaryAnalysisResult(toolResults: any[], input: ChatbotInput) {
+function getPrimaryAnalysisResult(
+  toolResults: ToolExecutionResult[],
+  input: ChatbotInput,
+) {
   const successfulTool = toolResults.find((tool) => tool.status === "success");
 
   if (successfulTool?.data) {
@@ -27,78 +25,140 @@ function getPrimaryAnalysisResult(toolResults: any[], input: ChatbotInput) {
 
   return input.current_analysis_result || null;
 }
+function isCasualPrompt(prompt: string) {
+  return /^(hi|hello|hey|yo|sup|thanks|thank you|ok|okay|test|uhh|hmm)$/i.test(
+    prompt.trim(),
+  );
+}
 
-/**
- * Intents that can be answered from a general knowledge / conversation
- * context without requiring backend analysis tool calls.
- */
-const GENERAL_INTENTS = new Set([
-  "general_question",
-  "general",
-  "faq",
-  "greeting",
-  "help",
-  "unclear",
-]);
+function isRoutePrompt(prompt: string) {
+  return /\b(route|trip|commute|journey|drive|travel|current route|this route|my route|along the way)\b/i.test(
+    prompt,
+  );
+}
 
-/**
- * Map router plan `next_agents` names to agent keys so only the
- * agents relevant to the current intent are invoked.
- */
-const AGENT_KEY_MAP: Record<string, string> = {
-  sim_recommender_agent: "sim_recommender",
-  simRecommenderAgent: "sim_recommender",
-  sim_recommender: "sim_recommender",
+function isSignalPrompt(prompt: string) {
+  return /\b(signal|coverage|sim|provider|network|internet|globe|smart|dito|weak|best|recommend|check|analyze|explain)\b/i.test(
+    prompt,
+  );
+}
 
-  coverage_explainer_agent: "coverage_explainer",
-  coverageExplainerAgent: "coverage_explainer",
-  coverage_explainer: "coverage_explainer",
+function buildDeterministicPlan(input: ChatbotInput): RouterPlan | null {
+  const prompt = input.prompt.trim();
 
-  report_summarizer_agent: "report_summarizer",
-  reportSummarizerAgent: "report_summarizer",
-  report_summarizer: "report_summarizer",
+  if (isCasualPrompt(prompt)) {
+    return {
+      intent: "unclear",
+      tool_calls: [],
+      missing_inputs: [],
+      reason: "The user sent a casual message, not a signal analysis request.",
+    };
+  }
 
-  offline_readiness_agent: "offline_readiness",
-  offlineReadinessAgent: "offline_readiness",
-  offline_readiness: "offline_readiness",
+  const routeAsked = isRoutePrompt(prompt);
+  const signalAsked = isSignalPrompt(prompt);
 
-  anomaly_agent: "anomaly",
-  anomalyAgent: "anomaly",
-  anomaly: "anomaly",
+  // If the user says random/non-signal stuff, do not ask for latitude/longitude.
+  if (!routeAsked && !signalAsked) {
+    return {
+      intent: "unclear",
+      tool_calls: [],
+      missing_inputs: [],
+      reason:
+        "The user did not ask a signal, coverage, location, or route question.",
+    };
+  }
 
-  tower_mapper_agent: "tower_mapper",
-  towerMapperAgent: "tower_mapper",
-  tower_mapper: "tower_mapper",
-};
+  // IMPORTANT FIX:
+  // If a route is active, coverage/signal/SIM questions should use the route.
+  // Example: "can you check for coverage"
+  if ((routeAsked || signalAsked) && input.origin && input.destination) {
+    return {
+      intent: "analyze_route",
+      tool_calls: [
+        {
+          name: "analyze_route",
+          arguments: {
+            origin: input.origin,
+            destination: input.destination,
+            route_points: input.route_points,
+            radius_km: input.radius_km ?? 5.0,
+          },
+        },
+      ],
+      missing_inputs: [],
+      reason:
+        "The user asked about coverage while an active route is available.",
+    };
+  }
 
+  if (
+    signalAsked &&
+    input.latitude !== undefined &&
+    input.longitude !== undefined
+  ) {
+    return {
+      intent: "analyze_point",
+      tool_calls: [
+        {
+          name: "analyze_point",
+          arguments: {
+            latitude: input.latitude,
+            longitude: input.longitude,
+            radius_km: input.radius_km ?? 5.0,
+          },
+        },
+      ],
+      missing_inputs: [],
+      reason: "The user asked about signal coverage for a known point.",
+    };
+  }
+
+  if (input.current_analysis_result && signalAsked) {
+    return {
+      intent: "explain_current_result",
+      tool_calls: [],
+      missing_inputs: [],
+      reason:
+        "The user asked about signal context and a current analysis result exists.",
+    };
+  }
+
+  return {
+    intent: "unclear",
+    tool_calls: [],
+    missing_inputs: [],
+    reason:
+      "The user asked about coverage but no route or location context is available.",
+  };
+}
 export class ChatbotOrchestrator {
   private lfm = new LFMClient();
-
   private routerAgent = new RouterAgent(this.lfm);
-  private simRecommenderAgent = new SimRecommenderAgent(this.lfm);
-  private coverageExplainerAgent = new CoverageExplainerAgent(this.lfm);
-  private reportSummarizerAgent = new ReportSummarizerAgent(this.lfm);
-  private towerMapperAgent = new TowerMapperAgent();
-  private offlineReadinessAgent = new OfflineReadinessAgent(this.lfm);
-  private anomalyAgent = new AnomalyAgent(this.lfm);
   private finalAnswerAgent = new FinalAnswerAgent(this.lfm);
+
+  async preloadModel() {
+    await this.lfm.load();
+  }
 
   async answer(input: ChatbotInput): Promise<FinalChatbotResponse> {
     const traceId = createTraceId();
 
-    // Step 1: Router agent decides intent and which tools/agents to use
-    const plan = await this.routerAgent.plan(input);
+    console.log("[Agent Trace] start", { traceId, input });
+
+    const deterministicPlan = buildDeterministicPlan(input);
+    const plan = deterministicPlan ?? (await this.routerAgent.plan(input));
+
+    console.log("[Agent Trace] router plan", plan);
 
     // Step 2: Surface missing-input errors immediately
     if (plan.missing_inputs?.length > 0) {
       return {
         intent: plan.intent,
-        answer: `I need a bit more information: ${plan.missing_inputs.join(", ")}. Could you provide those details?`,
+        answer: `I need this first: ${plan.missing_inputs.join(", ")}.`,
         recommended_provider: "Unknown",
         confidence: "low",
         analysis_result: null,
-        agent_outputs: {},
-        map_layers: null,
         tool_calls: [],
         warnings: plan.missing_inputs,
         trace_id: traceId,
@@ -123,89 +183,24 @@ export class ChatbotOrchestrator {
 
     // Step 4: Execute any tool calls planned by the router
     const toolResults =
-      plan.tool_calls?.length > 0 ? await executeToolCalls(plan.tool_calls) : [];
+      plan.tool_calls?.length > 0
+        ? await executeToolCalls(plan.tool_calls)
+        : [];
+
+    console.log("[Agent Trace] tool results", toolResults);
 
     const analysisResult = getPrimaryAnalysisResult(toolResults, input);
-
-    // Step 5: If we still have no analysis data, return a helpful nudge
-    if (!analysisResult) {
-      return {
-        intent: plan.intent,
-        answer:
-          "I need location data to answer that. Try asking something like \"Signal near EDSA\" or \"Globe vs Smart in Baguio\" so I can look up towers and reports.",
-        recommended_provider: "Unknown",
-        confidence: "low",
-        analysis_result: null,
-        agent_outputs: {},
-        map_layers: null,
-        tool_calls: toolResults.map((tool) => ({
-          name: tool.name,
-          status: tool.status,
-        })),
-        warnings: ["No analysis result available."],
-        trace_id: traceId,
-      };
-    }
-
-    // Step 6: Run only the specialist agents the router requested.
-    // Fall back to running all agents if next_agents is empty/missing.
-    const requestedKeys: Set<string> =
-      plan.next_agents?.length > 0
-        ? new Set(
-          plan.next_agents
-            .map((name) => AGENT_KEY_MAP[name])
-            .filter(Boolean)
-        )
-        : new Set([
-          "sim_recommender",
-          "coverage_explainer",
-          "report_summarizer",
-          "offline_readiness",
-          "anomaly",
-          "tower_mapper",
-        ]);
-
-    const agentOutputs: AgentOutputs = {};
-
-    if (requestedKeys.has("sim_recommender")) {
-      agentOutputs.sim_recommender =
-        await this.simRecommenderAgent.run(analysisResult);
-    }
-
-    if (requestedKeys.has("coverage_explainer")) {
-      agentOutputs.coverage_explainer =
-        await this.coverageExplainerAgent.run(analysisResult);
-    }
-
-    if (requestedKeys.has("report_summarizer")) {
-      agentOutputs.report_summarizer =
-        await this.reportSummarizerAgent.run(analysisResult);
-    }
-
-    if (requestedKeys.has("offline_readiness")) {
-      agentOutputs.offline_readiness =
-        await this.offlineReadinessAgent.run(analysisResult);
-    }
-
-    if (requestedKeys.has("anomaly")) {
-      agentOutputs.anomaly = await this.anomalyAgent.run(analysisResult);
-    }
-
-    let towerMapOutput: any = null;
-    if (requestedKeys.has("tower_mapper")) {
-      towerMapOutput = this.towerMapperAgent.run(analysisResult);
-      agentOutputs.tower_mapper = towerMapOutput;
-    }
 
     // Step 7: Final answer agent synthesises everything into one response
     const finalAnswer = await this.finalAnswerAgent.run({
       traceId,
+      userPrompt: input.prompt,
       plan,
       analysisResult,
-      agentOutputs,
-      mapLayers: towerMapOutput?.map_layers ?? null,
       toolResults,
     });
+
+    console.log("[Agent Trace] final answer", finalAnswer);
 
     return finalAnswer;
   }

@@ -1,55 +1,195 @@
 import { MOCK_USE_CASES } from "../../types/coverage";
+import type { ChatMessage } from "../../types/coverage";
+import { frontendAgentOrchestrator } from "../../orchestration/agentSingleton";
 import { PROVIDERS } from "../../constants/providers";
 
 const USER_SEGMENTS = [
   {
-    id: "commuters",
-    label: "Daily commuters",
-    share: 38,
-    color: "#3457FF",
-    coverage: 86,
-    speed: 74,
-    offline: 22,
+    id: "welcome",
+    role: "bot",
+    text: "Ask about signal for a place or trip. Replies use your frontend AI router, backend signal tools, and final answer model.",
+    citation: "Frontend LFM Agent",
   },
-  {
-    id: "travelers",
-    label: "Intercity travelers",
-    share: 27,
-    color: "#14B8A6",
-    coverage: 78,
-    speed: 66,
-    offline: 41,
-  },
-  {
-    id: "field",
-    label: "Field teams",
-    share: 21,
-    color: "#F59E0B",
-    coverage: 92,
-    speed: 61,
-    offline: 63,
-  },
-  {
-    id: "events",
-    label: "Event crews",
-    share: 14,
-    color: "#EF4444",
-    coverage: 70,
-    speed: 82,
-    offline: 28,
-  },
-] as const;
+];
 
-const PRIORITY_LEGEND = [
-  { key: "coverage", label: "Coverage", color: "#3457FF" },
-  { key: "speed", label: "Speed", color: "#14B8A6" },
-  { key: "offline", label: "Offline", color: "#F59E0B" },
-] as const;
+const PLACE_HINTS: Record<
+  string,
+  { latitude: number; longitude: number; name: string }
+> = {
+  baguio: {
+    latitude: 16.4023,
+    longitude: 120.596,
+    name: "Baguio",
+  },
+  edsa: {
+    latitude: 14.5746,
+    longitude: 121.0437,
+    name: "EDSA, Metro Manila",
+  },
+  cebu: {
+    latitude: 10.3157,
+    longitude: 123.8854,
+    name: "Cebu",
+  },
+  manila: {
+    latitude: 14.5995,
+    longitude: 120.9842,
+    name: "Manila",
+  },
+};
 
-type PriorityKey = (typeof PRIORITY_LEGEND)[number]["key"];
-type UserSegment = (typeof USER_SEGMENTS)[number];
+function resolvePlaceHint(text: string) {
+  const normalized = text.toLowerCase();
 
-export default function UseCasesSection() {
+  for (const [keyword, place] of Object.entries(PLACE_HINTS)) {
+    if (normalized.includes(keyword)) {
+      return place;
+    }
+  }
+
+  return null;
+}
+
+function isRouteIntent(text: string) {
+  return /\b(route|trip|commute|journey|drive|travel|current route|this route|my route|along the way)\b/i.test(
+    text,
+  );
+}
+
+function isCoverageIntent(text: string) {
+  return /\b(signal|coverage|sim|provider|network|internet|globe|smart|dito|weak|best|recommend|check|analyze)\b/i.test(
+    text,
+  );
+}
+
+function isExplainIntent(text: string) {
+  return /\b(why|explain|what does this mean|summary|summarize|best|which sim|which provider|recommend|compare|globe|smart|dito|weak|coverage|signal|dead zone|deadzone)\b/i.test(
+    text,
+  );
+}
+
+interface UseCasesSectionProps {
+  activeRoute: RouteCoords | null;
+  forecast: RouteForecast | null;
+}
+
+export default function UseCasesSection({
+  activeRoute,
+  forecast,
+}: UseCasesSectionProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (bodyRef.current) {
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    }
+  }, [messages, isTyping]);
+
+  async function send(text: string) {
+    const cleanText = text.trim();
+    if (!cleanText) return;
+
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      text: cleanText,
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setIsTyping(true);
+
+    try {
+      const placeHint = resolvePlaceHint(cleanText);
+
+      const wantsActiveRoute = Boolean(
+        activeRoute &&
+        !placeHint &&
+        (isRouteIntent(cleanText) || isCoverageIntent(cleanText)),
+      );
+      const wantsForecastExplanation = Boolean(
+        forecast && isExplainIntent(cleanText),
+      );
+
+      console.log("[UseCases Chat Context]", {
+        text: cleanText,
+        activeRoute,
+        forecast,
+        placeHint,
+        wantsActiveRoute,
+        wantsForecastExplanation,
+      });
+
+      const result = await frontendAgentOrchestrator.answer({
+        prompt: cleanText,
+
+        origin: wantsActiveRoute
+          ? {
+              latitude: activeRoute!.originLat,
+              longitude: activeRoute!.originLng,
+              name: activeRoute!.originName,
+            }
+          : undefined,
+
+        destination: wantsActiveRoute
+          ? {
+              latitude: activeRoute!.destLat,
+              longitude: activeRoute!.destLng,
+              name: activeRoute!.destName,
+            }
+          : undefined,
+
+        latitude:
+          !wantsActiveRoute && placeHint ? placeHint.latitude : undefined,
+        longitude:
+          !wantsActiveRoute && placeHint ? placeHint.longitude : undefined,
+
+        radius_km: 5.0,
+
+        current_analysis_result:
+          wantsActiveRoute || wantsForecastExplanation ? forecast : undefined,
+      });
+
+      const botMsg: ChatMessage = {
+        id: result.trace_id || (Date.now() + 1).toString(),
+        role: "bot",
+        text: result.answer,
+        citation:
+          result.intent === "analyze_route" &&
+          result.tool_calls?.some(
+            (tool) =>
+              tool.name === "analyze_route" && tool.status === "success",
+          )
+            ? "Frontend Router + Route Tool + Final Answer"
+            : result.intent === "analyze_point" &&
+                result.tool_calls?.some(
+                  (tool) =>
+                    tool.name === "analyze_point" && tool.status === "success",
+                )
+              ? "Frontend Router + Point Tool + Final Answer"
+              : "Frontend Router + Final Answer",
+      };
+
+      setMessages((prev) => [...prev, botMsg]);
+    } catch (e) {
+      const errMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "bot",
+        text: `Frontend AI flow failed: ${
+          e instanceof Error ? e.message : "unknown error"
+        }. Check that the LFM server is running on 8020 and the backend /mcp/tools/call endpoint is running.`,
+        citation: "Frontend LFM Agent",
+      };
+
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setIsTyping(false);
+    }
+  }
+
   return (
     <section id="use-cases" className="block" data-section="use-cases">
       <div className="block-head">
@@ -66,7 +206,6 @@ export default function UseCasesSection() {
       </div>
 
       <div className="grid grid-cols-1 gap-[14px] lg:!grid-cols-2 lg:!gap-[18px]">
-        {/* Use case table */}
         <div className="panel">
           <div className="panel-head">
             <div className="panel-title">Popular use cases</div>
@@ -77,6 +216,7 @@ export default function UseCasesSection() {
               Best SIM
             </span>
           </div>
+
           <div>
             {MOCK_USE_CASES.map((uc, i) => (
               <div
@@ -113,7 +253,6 @@ export default function UseCasesSection() {
           </div>
         </div>
 
-        {/* User comparisons */}
         <div className="panel flex flex-col">
           <div className="panel-head">
             <div className="panel-title">
@@ -123,64 +262,31 @@ export default function UseCasesSection() {
             </div>
           </div>
 
-          <div className="p-[18px] flex flex-col gap-4">
-            <div
-              className="rounded-2xl border border-[var(--line)] p-[14px]"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(52,87,255,0.08), rgba(20,184,166,0.06))",
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-[12px] font-semibold text-[var(--ink)]">
-                  User mix by trip type
-                </div>
-                <div className="text-[10px] text-[var(--ink-4)]">
-                  % of chats
-                </div>
-              </div>
+          <div
+            ref={bodyRef}
+            className="flex-1 p-[18px] flex flex-col gap-2.5 bg-[var(--tint)] border-b border-[var(--line)] min-h-[240px] overflow-y-auto"
+          >
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                style={{
+                  maxWidth: "88%",
+                  padding: "10px 13px",
+                  borderRadius: 12,
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+                  background: msg.role === "user" ? "var(--ink)" : "white",
+                  border: msg.role === "bot" ? "1px solid var(--line)" : "none",
+                  color: msg.role === "user" ? "white" : "var(--ink)",
+                  borderBottomRightRadius: msg.role === "user" ? 4 : 12,
+                  borderBottomLeftRadius: msg.role === "bot" ? 4 : 12,
+                }}
+              >
+                {msg.text}
 
-              <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-white border border-[var(--line)] flex">
-                {USER_SEGMENTS.map((segment) => (
-                  <div
-                    key={segment.id}
-                    style={{
-                      width: `${segment.share}%`,
-                      background: segment.color,
-                    }}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {USER_SEGMENTS.map((segment) => (
-                  <div
-                    key={segment.id}
-                    className="flex items-center gap-2 text-[11px] text-[var(--ink-4)]"
-                  >
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ background: segment.color }}
-                    />
-                    <span className="text-[var(--ink)] font-medium">
-                      {segment.label}
-                    </span>
-                    <span>{segment.share}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {USER_SEGMENTS.map((segment) => (
-                <div
-                  key={segment.id}
-                  className="rounded-2xl border border-[var(--line)] bg-white p-[14px]"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-[12px] font-semibold text-[var(--ink)]">
-                      {segment.label}
-                    </div>
+                {msg.citation && (
+                  <div className="mt-1.5">
                     <span
                       className="text-[10px] uppercase tracking-[0.08em] text-[var(--ink-4)]"
                       style={{ fontFamily: "var(--mono)" }}
@@ -188,34 +294,63 @@ export default function UseCasesSection() {
                       Priority index
                     </span>
                   </div>
+                )}
+              </div>
+            ))}
 
-                  <div className="mt-3 space-y-2">
-                    {PRIORITY_LEGEND.map((legend) => {
-                      const value = segment[
-                        legend.key as PriorityKey
-                      ] as UserSegment[PriorityKey];
-                      return (
-                        <div key={legend.key}>
-                          <div className="flex items-center justify-between text-[10px] text-[var(--ink-4)]">
-                            <span>{legend.label}</span>
-                            <span>{value}</span>
-                          </div>
-                          <div className="mt-1 h-2 w-full rounded-full bg-[var(--tint)]">
-                            <div
-                              className="h-2 rounded-full"
-                              style={{
-                                width: `${value}%`,
-                                background: legend.color,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
+            {isTyping && (
+              <div className="inline-flex gap-[3px] self-start py-[9px] px-3 bg-white border border-[var(--line)] rounded-xl rounded-bl-[4px]">
+                {[0, 0.2, 0.4].map((delay, i) => (
+                  <span
+                    key={i}
+                    className="w-[5px] h-[5px] rounded-full bg-[var(--ink-5)]"
+                    style={{ animation: `bounce 1.2s ${delay}s infinite` }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-1.5 py-[10px] px-[14px] border-b border-[var(--line-soft)] overflow-x-auto">
+            {QUICK_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                onClick={() => void send(prompt)}
+                className="flex-shrink-0 border border-[var(--line)] bg-white rounded-full py-[5px] px-[11px] text-[11.5px] font-medium text-[var(--ink-3)] whitespace-nowrap"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2 py-3 px-[14px] items-center">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void send(input);
+              }}
+              placeholder="Ask about signal coverage…"
+              className="flex-1 border border-[var(--line)] rounded-[9px] py-[9px] px-3 text-[13px] outline-none text-[var(--ink)]"
+              style={{ fontFamily: "inherit" }}
+            />
+
+            <button
+              onClick={() => void send(input)}
+              className="bg-[var(--brand)] text-white border-0 rounded-[9px] w-9 h-9 grid place-items-center"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              >
+                <path d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>

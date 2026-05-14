@@ -1,8 +1,7 @@
 export const SIGNALPH_TOOLS = [
   {
     name: "analyze_point",
-    description:
-      "Analyze signal coverage at one selected geographic point.",
+    description: "Analyze signal coverage at one selected geographic point.",
     parameters: {
       type: "object",
       properties: {
@@ -52,87 +51,6 @@ export const SIGNALPH_TOOLS = [
         radius_km: { type: "number", default: 5.0 },
       },
       required: ["origin", "destination"],
-    },
-  },
-  {
-    name: "submit_signal_report",
-    description:
-      "Submit a crowdsourced signal quality report for a provider at a location.",
-    parameters: {
-      type: "object",
-      properties: {
-        latitude: { type: "number" },
-        longitude: { type: "number" },
-        provider_name: {
-          type: "string",
-          enum: ["Globe", "Smart", "DITO", "Other"],
-        },
-        signal_feedback: { type: "string" },
-        speed_feedback: { type: "string" },
-        issue_type: { type: "string" },
-        user_notes: { type: "string" },
-      },
-      required: ["latitude", "longitude", "provider_name"],
-    },
-  },
-  {
-    name: "recommend_sim",
-    description: "Recommend the best SIM/provider based on analysis data.",
-    parameters: {
-      type: "object",
-      properties: {
-        analysis_result: { type: "object" },
-      },
-    },
-  },
-  {
-    name: "explain_coverage",
-    description: "Explain signal coverage quality and evidence.",
-    parameters: {
-      type: "object",
-      properties: {
-        analysis_result: { type: "object" },
-      },
-    },
-  },
-  {
-    name: "summarize_reports",
-    description: "Summarize community reports for an area.",
-    parameters: {
-      type: "object",
-      properties: {
-        analysis_result: { type: "object" },
-      },
-    },
-  },
-  {
-    name: "check_offline_readiness",
-    description: "Check if offline preparation is needed for a route.",
-    parameters: {
-      type: "object",
-      properties: {
-        analysis_result: { type: "object" },
-      },
-    },
-  },
-  {
-    name: "check_anomalies",
-    description: "Check for data anomalies or suspicious coverage results.",
-    parameters: {
-      type: "object",
-      properties: {
-        analysis_result: { type: "object" },
-      },
-    },
-  },
-  {
-    name: "map_towers",
-    description: "Generate map layer data for towers and signal segments.",
-    parameters: {
-      type: "object",
-      properties: {
-        analysis_result: { type: "object" },
-      },
     },
   },
 ] as const;

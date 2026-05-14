@@ -13,14 +13,3 @@ export function parseModelJson<T = unknown>(rawText: string): T {
   const jsonText = extractJsonText(rawText);
   return JSON.parse(jsonText) as T;
 }
-
-export function safeParseModelJson<T = unknown>(
-  rawText: string,
-  fallback: T
-): T {
-  try {
-    return parseModelJson<T>(rawText);
-  } catch {
-    return fallback;
-  }
-}

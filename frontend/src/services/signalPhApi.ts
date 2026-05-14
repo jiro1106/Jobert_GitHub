@@ -1,11 +1,25 @@
-// The MCP bridge is mounted at the root level (/mcp/...), not under /api.
-// VITE_API_URL should be the bare origin e.g. http://localhost:8001
-const API_BASE_URL = (
-  import.meta.env.VITE_API_URL || "http://localhost:8001"
-).replace(/\/$/, "").replace(/\/api$/, "");
+function getEnvValue(key: string, fallback: string): string {
+  const viteEnv = (import.meta as any).env;
+  const nodeEnv = (globalThis as any).process?.env;
+
+  return viteEnv?.[key] || nodeEnv?.[key] || fallback;
+}
+
+const API_BASE_URL = getEnvValue(
+  "VITE_SIGNALPH_API_BASE_URL",
+  "http://127.0.0.1:8000",
+).replace(/\/$/, "");
 
 export async function callMcpTool(name: string, args: Record<string, unknown>) {
-  const response = await fetch(`${API_BASE_URL}/mcp/tools/call`, {
+  const url = `${API_BASE_URL}/mcp/tools/call`;
+
+  console.log("[MCP request]", {
+    url,
+    name,
+    arguments: args,
+  });
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -16,15 +30,24 @@ export async function callMcpTool(name: string, args: Record<string, unknown>) {
     }),
   });
 
+  const responseText = await response.text();
+
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`MCP tool call failed: ${response.status} ${errorText}`);
+    console.error("[MCP error]", {
+      status: response.status,
+      body: responseText,
+      request: {
+        name,
+        arguments: args,
+      },
+    });
+
+    throw new Error(`MCP tool call failed: ${response.status} ${responseText}`);
   }
 
-  return response.json();
+  return JSON.parse(responseText);
 }
 
-export async function healthCheck() {
-  const response = await fetch(`${API_BASE_URL}/health`);
-  return response.json();
+export function getSignalPhApiBaseUrl() {
+  return API_BASE_URL;
 }

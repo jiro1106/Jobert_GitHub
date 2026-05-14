@@ -262,12 +262,86 @@ function RouteSidebar({
   loading?: boolean;
   error?: string | null;
 }) {
-  const summary = forecast?.summary;
-  const recommendation = forecast?.recommendation;
-  const gaps = forecast?.gaps ?? [];
+  // Loading state
+  if (loading && !forecast) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        {[120, 100, 160].map((h, i) => (
+          <div
+            key={i}
+            className="panel"
+            style={{ height: h, animation: "pulse 1.5s ease-in-out infinite" }}
+          >
+            <div style={{ padding: 18 }}>
+              <div
+                style={{
+                  background: "#EEF1F7",
+                  borderRadius: 8,
+                  height: 12,
+                  width: "50%",
+                  marginBottom: 10,
+                }}
+              />
+              <div
+                style={{
+                  background: "#EEF1F7",
+                  borderRadius: 8,
+                  height: 28,
+                  width: "35%",
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Error state without usable forecast
+  if (!forecast && error) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "#FEE2E2",
+            border: "1px solid #FCA5A5",
+            borderRadius: 8,
+            fontSize: 13,
+            color: "#DC2626",
+          }}
+        >
+          {error}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            padding: "48px 24px",
+            border: "1.5px dashed var(--line)",
+            borderRadius: 16,
+            color: "var(--ink-4)",
+            textAlign: "center",
+            background: "var(--surface)",
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: 14 }}>
+            Could not load route forecast
+          </div>
+          <div style={{ fontSize: 12 }}>
+            Try selecting the route again or check if the backend is running.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Empty state — no route selected yet
-  if (!forecast && !loading) {
+  if (!forecast) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <div
@@ -306,40 +380,12 @@ function RouteSidebar({
     );
   }
 
-  // Loading state
-  if (loading && !forecast) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-        {[120, 100, 160].map((h, i) => (
-          <div
-            key={i}
-            className="panel"
-            style={{ height: h, animation: "pulse 1.5s ease-in-out infinite" }}
-          >
-            <div style={{ padding: 18 }}>
-              <div
-                style={{
-                  background: "#EEF1F7",
-                  borderRadius: 8,
-                  height: 12,
-                  width: "50%",
-                  marginBottom: 10,
-                }}
-              />
-              <div
-                style={{
-                  background: "#EEF1F7",
-                  borderRadius: 8,
-                  height: 28,
-                  width: "35%",
-                }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
+  // After this point, forecast is guaranteed non-null.
+  const { summary, recommendation } = forecast;
+  const gaps = forecast.gaps ?? [];
+
+  const providerMeta =
+    PROVIDERS[recommendation.provider as keyof typeof PROVIDERS];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -357,6 +403,7 @@ function RouteSidebar({
           ⏳ Analysing route signal coverage…
         </div>
       )}
+
       {error && (
         <div
           style={{
@@ -371,6 +418,7 @@ function RouteSidebar({
           {error}
         </div>
       )}
+
       {/* Trip summary */}
       <div className="panel">
         <div style={{ padding: "18px 18px 8px" }}>
@@ -386,6 +434,7 @@ function RouteSidebar({
           >
             Trip overview
           </div>
+
           <div
             style={{
               fontFamily: "var(--mono)",
@@ -403,6 +452,7 @@ function RouteSidebar({
             </sub>
           </div>
         </div>
+
         <div
           style={{
             display: "grid",
@@ -414,15 +464,17 @@ function RouteSidebar({
           }}
         >
           <TripMetric
-            value={`${Math.floor(summaryDrivingTimeMin / 60)}h ${summaryDrivingTimeMin % 60}m`}
+            value={`${Math.floor(summaryDrivingTimeMin / 60)}h ${
+              summaryDrivingTimeMin % 60
+            }m`}
             label="Est. drive time"
           />
           <TripMetric
-            value={`${summary?.strongSignalPct ?? 0}%`}
+            value={`${summary.strongSignalPct ?? 0}%`}
             label="Strong signal"
           />
           <TripMetric
-            value={String(summary?.deadZoneCount ?? 0)}
+            value={String(summary.deadZoneCount ?? 0)}
             label="Dead zones"
             color="var(--bad)"
           />
@@ -431,69 +483,73 @@ function RouteSidebar({
 
       {/* Recommended SIM — only shown when recommendation data is available */}
       {recommendation && (
-      <div className="panel">
-        <div className="panel-head">
-          <div className="panel-title">
-            Best SIM for this trip
-            <span className="badge">AI pick</span>
+        <div className="panel">
+          <div className="panel-head">
+            <div className="panel-title">
+              Best SIM for this trip
+              <span className="badge">AI pick</span>
+            </div>
+            <button className="map-iconbtn" title="Why?">
+              <InfoIcon />
+            </button>
           </div>
-          <button className="map-iconbtn" title="Why?">
-            <InfoIcon />
-          </button>
-        </div>
-        <div
-          className="panel-body"
-          style={{ display: "flex", alignItems: "center", gap: 14 }}
-        >
+
           <div
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 14,
-              display: "grid",
-              placeItems: "center",
-              flexShrink: 0,
-            }}
+            className="panel-body"
+            style={{ display: "flex", alignItems: "center", gap: 14 }}
           >
-            <img
-              src={PROVIDERS[recommendation?.provider]?.logo}
-              alt={recommendation?.name ?? ""}
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>
-              {recommendation?.name ?? "Unknown"}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 2 }}>
-              {recommendation?.reason}
-            </div>
-          </div>
-          <div style={{ textAlign: "right" }}>
             <div
               style={{
-                fontFamily: "var(--mono)",
-                fontSize: 22,
-                fontWeight: 600,
-                color: "var(--ok)",
+                width: 64,
+                height: 64,
+                borderRadius: 14,
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
               }}
             >
-              {recommendation?.score ?? 0}
+              <img
+                src={PROVIDERS[recommendation?.provider]?.logo}
+                alt={recommendation?.name ?? ""}
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              />
             </div>
-            <div
-              style={{
-                fontFamily: "var(--mono)",
-                fontSize: 10,
-                color: "var(--ink-5)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              /100
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>
+                {recommendation.name}
+              </div>
+              <div
+                style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 2 }}
+              >
+                {recommendation.reason}
+              </div>
+            </div>
+
+            <div style={{ textAlign: "right" }}>
+              <div
+                style={{
+                  fontFamily: "var(--mono)",
+                  fontSize: 22,
+                  fontWeight: 600,
+                  color: "var(--ok)",
+                }}
+              >
+                {recommendation.score ?? 0}
+              </div>
+              <div
+                style={{
+                  fontFamily: "var(--mono)",
+                  fontSize: 10,
+                  color: "var(--ink-5)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                /100
+              </div>
             </div>
           </div>
         </div>
-      </div>
       )}
 
       {/* Signal gaps — top 3 largest merged patches */}
@@ -510,7 +566,8 @@ function RouteSidebar({
               color: "var(--ink-4)",
             }}
           >
-            {Math.min(gaps.length, 3)} major gap{Math.min(gaps.length, 3) !== 1 ? "s" : ""}
+            {Math.min(gaps.length, 3)} major gap
+            {Math.min(gaps.length, 3) !== 1 ? "s" : ""}
           </span>
         </div>
 
@@ -533,8 +590,6 @@ function RouteSidebar({
           </div>
         )}
       </div>
-
-
     </div>
   );
 }
@@ -699,11 +754,10 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
         }}
       >
         <div>
-          <div className="panel-title">
-            Signal quality along your trip
-          </div>
+          <div className="panel-title">Signal quality along your trip</div>
           <div className="h-sub" style={{ fontSize: 12, marginTop: 2 }}>
-            Hover over the chart to see which provider has better signal at each point
+            Hover over the chart to see which provider has better signal at each
+            point
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -774,16 +828,88 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
             </defs>
 
             {/* Signal quality zone bands */}
-            <rect x="0" y="0" width={W} height="70" fill="#22C55E" opacity="0.05" />
-            <rect x="0" y="70" width={W} height="60" fill="#F59E0B" opacity="0.05" />
-            <rect x="0" y="130" width={W} height="70" fill="#EF4444" opacity="0.05" />
-            <line x1="0" y1="70" x2={W} y2="70" stroke="#22C55E" strokeWidth="0.5" strokeDasharray="3 4" opacity="0.3" />
-            <line x1="0" y1="130" x2={W} y2="130" stroke="#EF4444" strokeWidth="0.5" strokeDasharray="3 4" opacity="0.3" />
+            <rect
+              x="0"
+              y="0"
+              width={W}
+              height="70"
+              fill="#22C55E"
+              opacity="0.05"
+            />
+            <rect
+              x="0"
+              y="70"
+              width={W}
+              height="60"
+              fill="#F59E0B"
+              opacity="0.05"
+            />
+            <rect
+              x="0"
+              y="130"
+              width={W}
+              height="70"
+              fill="#EF4444"
+              opacity="0.05"
+            />
+            <line
+              x1="0"
+              y1="70"
+              x2={W}
+              y2="70"
+              stroke="#22C55E"
+              strokeWidth="0.5"
+              strokeDasharray="3 4"
+              opacity="0.3"
+            />
+            <line
+              x1="0"
+              y1="130"
+              x2={W}
+              y2="130"
+              stroke="#EF4444"
+              strokeWidth="0.5"
+              strokeDasharray="3 4"
+              opacity="0.3"
+            />
 
             {/* Zone labels — plain language */}
-            <text x={W - 8} y="38" textAnchor="end" fontFamily="system-ui" fontSize="9" fill="#16A34A" opacity="0.65" fontWeight="600">Good signal</text>
-            <text x={W - 8} y="103" textAnchor="end" fontFamily="system-ui" fontSize="9" fill="#D97706" opacity="0.65" fontWeight="600">Fair signal</text>
-            <text x={W - 8} y="168" textAnchor="end" fontFamily="system-ui" fontSize="9" fill="#DC2626" opacity="0.65" fontWeight="600">Poor signal</text>
+            <text
+              x={W - 8}
+              y="38"
+              textAnchor="end"
+              fontFamily="system-ui"
+              fontSize="9"
+              fill="#16A34A"
+              opacity="0.65"
+              fontWeight="600"
+            >
+              Good signal
+            </text>
+            <text
+              x={W - 8}
+              y="103"
+              textAnchor="end"
+              fontFamily="system-ui"
+              fontSize="9"
+              fill="#D97706"
+              opacity="0.65"
+              fontWeight="600"
+            >
+              Fair signal
+            </text>
+            <text
+              x={W - 8}
+              y="168"
+              textAnchor="end"
+              fontFamily="system-ui"
+              fontSize="9"
+              fill="#DC2626"
+              opacity="0.65"
+              fontWeight="600"
+            >
+              Poor signal
+            </text>
 
             {/* Vertical km checkpoint lines */}
             <g stroke="#CBD5E1" strokeWidth="0.75" strokeDasharray="2 5">
@@ -828,15 +954,17 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
             ))}
 
             {/* Area fills — first two providers only */}
-            {providerConfig.slice(0, 2).map((p) =>
-              activeProviders.has(p.id) && p.pts.length >= 2 ? (
-                <path
-                  key={p.id}
-                  d={`${smoothPath(p.pts)} L ${W - MARGIN} ${H} L ${MARGIN} ${H} Z`}
-                  fill={`url(#fill-${p.id})`}
-                />
-              ) : null,
-            )}
+            {providerConfig
+              .slice(0, 2)
+              .map((p) =>
+                activeProviders.has(p.id) && p.pts.length >= 2 ? (
+                  <path
+                    key={p.id}
+                    d={`${smoothPath(p.pts)} L ${W - MARGIN} ${H} L ${MARGIN} ${H} Z`}
+                    fill={`url(#fill-${p.id})`}
+                  />
+                ) : null,
+              )}
 
             {/* Provider lines */}
             {providerConfig.map((p) =>
@@ -936,10 +1064,17 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
                           flexShrink: 0,
                         }}
                       />
-                      <span style={{ color: "rgba(255,255,255,0.75)", minWidth: 44 }}>
+                      <span
+                        style={{
+                          color: "rgba(255,255,255,0.75)",
+                          minWidth: 44,
+                        }}
+                      >
                         {p.label}
                       </span>
-                      <span style={{ color, fontWeight: 700, fontSize: 11 }}>{label}</span>
+                      <span style={{ color, fontWeight: 700, fontSize: 11 }}>
+                        {label}
+                      </span>
                     </div>
                   );
                 })}
