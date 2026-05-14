@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
-import { getPlatformStats, type StatsResponse } from '../../lib/api';
+import { getPlatformStats, type StatsResponse } from '../../libs/api';
 import { MOCK_STATS } from '../../types/coverage';
 
 export default function StatsSection() {

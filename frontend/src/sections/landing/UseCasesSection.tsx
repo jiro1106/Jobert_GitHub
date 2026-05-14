@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { MOCK_USE_CASES } from "../../types/coverage";
 import type { ChatMessage } from "../../types/coverage";
-import { submitChatMessage } from "../../lib/api";
+import { submitChatMessage } from "../../libs/api";
 
 const PROVIDER_COLORS: Record<string, string> = {
   globe: "#1F4FFF",

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import type { ProviderScore } from "../../types/coverage";
-import { getProviderScores } from "../../lib/api";
+import { getProviderScores } from "../../libs/api";
 import type { RouteCoords } from "../../pages/LandingPage";
 
 type Scope = "route" | "dest" | "origin";

@@ -11,7 +11,7 @@ import {
 import SuggestionChips from "./SuggestionChips";
 import ChatbotInput from "./ChatbotInput";
 import ChatbotConversation from "./ChatbotConversation";
-import { submitChatMessage } from "../../lib/api";
+import { submitChatMessage } from "../../libs/api";
 
 import { Message } from "./types";
 

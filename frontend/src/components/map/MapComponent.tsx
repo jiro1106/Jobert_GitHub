@@ -11,7 +11,7 @@ import MapSearchLeaflet, {
   type RouteMetricsFromMap,
 } from './search/MapSearchLeaflet';
 import HeatmapLayer from './HeatmapLayer';
-import { getNearbyTowers } from '../../lib/api';
+import { getNearbyTowers } from '../../libs/api';
 
 export type { RouteMetricsFromMap };
 

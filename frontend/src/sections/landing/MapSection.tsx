@@ -5,7 +5,7 @@ import MapComponent, {
   type RouteMetricsFromMap,
 } from "../../components/map/MapComponent";
 import type { TravelMode } from "../../types/coverage";
-import { getRouteForecast } from "../../lib/api";
+import { getRouteForecast } from "../../libs/api";
 import { ArrowRight } from "lucide-react";
 import type { RouteCoords } from "../../pages/LandingPage";
 
