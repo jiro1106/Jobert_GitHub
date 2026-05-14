@@ -611,16 +611,20 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
   const deadZones = useMemo(() => {
     const usableW = W - MARGIN * 2;
     const totalKm = forecast.summary.distanceKm || 1;
-    return forecast.gaps.map((gap) => {
-      const centerX = MARGIN + (gap.km / totalKm) * usableW;
-      const w = gap.level === "dead" ? 50 : 40;
-      return {
-        x: centerX - w / 2,
-        w,
-        label: gap.level === "dead" ? "Dead zone" : "Patchy",
-        color: gap.level === "dead" ? "#D03737" : "#C77700",
-      };
-    });
+    return forecast.gaps
+      .filter((gap) => gap.km > 0) // ignore gaps reported at origin
+      .map((gap) => {
+        const centerX = MARGIN + (gap.km / totalKm) * usableW;
+        const w = gap.level === "dead" ? 50 : 40;
+        const rawX = centerX - w / 2;
+        const x = Math.max(MARGIN, Math.min(W - MARGIN - w, rawX));
+        return {
+          x,
+          w,
+          label: gap.level === "dead" ? "No Signal" : "Weak here",
+          color: gap.level === "dead" ? "#D03737" : "#C77700",
+        };
+      });
   }, [forecast.gaps, forecast.summary.distanceKm]);
 
   function smoothPath(pts: [number, number][], tension = 0.35): string {
@@ -656,9 +660,9 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
   }
 
   function signalLabel(pct: number): { label: string; color: string } {
-    if (pct >= 65) return { label: "Strong", color: "#16A34A" };
-    if (pct >= 35) return { label: "Moderate", color: "#D97706" };
-    return { label: "Weak", color: "#DC2626" };
+    if (pct >= 65) return { label: "Good signal", color: "#16A34A" };
+    if (pct >= 35) return { label: "Fair signal", color: "#D97706" };
+    return { label: "Poor signal", color: "#DC2626" };
   }
 
   function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
@@ -712,10 +716,10 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
       >
         <div>
           <div className="panel-title">
-            Predicted signal strength along route
+            Signal quality along your trip
           </div>
           <div className="h-sub" style={{ fontSize: 12, marginTop: 2 }}>
-            Based on live tower data · toggle providers below
+            Hover over the chart to see which provider has better signal at each point
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -786,110 +790,23 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
             </defs>
 
             {/* Signal quality zone bands */}
-            <rect
-              x="0"
-              y="0"
-              width={W}
-              height="70"
-              fill="#22C55E"
-              opacity="0.04"
-            />
-            <rect
-              x="0"
-              y="70"
-              width={W}
-              height="60"
-              fill="#F59E0B"
-              opacity="0.04"
-            />
-            <rect
-              x="0"
-              y="130"
-              width={W}
-              height="70"
-              fill="#EF4444"
-              opacity="0.04"
-            />
-            <line
-              x1="0"
-              y1="70"
-              x2={W}
-              y2="70"
-              stroke="#22C55E"
-              strokeWidth="0.5"
-              strokeDasharray="3 4"
-              opacity="0.35"
-            />
-            <line
-              x1="0"
-              y1="130"
-              x2={W}
-              y2="130"
-              stroke="#EF4444"
-              strokeWidth="0.5"
-              strokeDasharray="3 4"
-              opacity="0.35"
-            />
+            <rect x="0" y="0" width={W} height="70" fill="#22C55E" opacity="0.05" />
+            <rect x="0" y="70" width={W} height="60" fill="#F59E0B" opacity="0.05" />
+            <rect x="0" y="130" width={W} height="70" fill="#EF4444" opacity="0.05" />
+            <line x1="0" y1="70" x2={W} y2="70" stroke="#22C55E" strokeWidth="0.5" strokeDasharray="3 4" opacity="0.3" />
+            <line x1="0" y1="130" x2={W} y2="130" stroke="#EF4444" strokeWidth="0.5" strokeDasharray="3 4" opacity="0.3" />
 
-            {/* Zone labels */}
-            <text
-              x={W - 6}
-              y="36"
-              textAnchor="end"
-              fontFamily="JetBrains Mono"
-              fontSize="8"
-              fill="#16A34A"
-              opacity="0.6"
-              fontWeight="600"
-            >
-              STRONG
-            </text>
-            <text
-              x={W - 6}
-              y="103"
-              textAnchor="end"
-              fontFamily="JetBrains Mono"
-              fontSize="8"
-              fill="#D97706"
-              opacity="0.6"
-              fontWeight="600"
-            >
-              MODERATE
-            </text>
-            <text
-              x={W - 6}
-              y="168"
-              textAnchor="end"
-              fontFamily="JetBrains Mono"
-              fontSize="8"
-              fill="#DC2626"
-              opacity="0.6"
-              fontWeight="600"
-            >
-              WEAK
-            </text>
+            {/* Zone labels — plain language */}
+            <text x={W - 8} y="38" textAnchor="end" fontFamily="system-ui" fontSize="9" fill="#16A34A" opacity="0.65" fontWeight="600">Good signal</text>
+            <text x={W - 8} y="103" textAnchor="end" fontFamily="system-ui" fontSize="9" fill="#D97706" opacity="0.65" fontWeight="600">Fair signal</text>
+            <text x={W - 8} y="168" textAnchor="end" fontFamily="system-ui" fontSize="9" fill="#DC2626" opacity="0.65" fontWeight="600">Poor signal</text>
 
-            {/* Grid */}
-            <g stroke="#EEF1F7" strokeWidth="0.75">
-              {[40, 80, 120, 160].map((y) => (
-                <line key={y} x1="0" y1={y} x2={W} y2={y} />
-              ))}
-            </g>
-
-            {/* Y-axis labels */}
-            <g fontFamily="JetBrains Mono" fontSize="9" fill="#94A3B8">
-              {(
-                [
-                  ["100", 14],
-                  ["75", 54],
-                  ["50", 104],
-                  ["25", 154],
-                ] as [string, number][]
-              ).map(([v, y]) => (
-                <text key={v} x="6" y={y}>
-                  {v}
-                </text>
-              ))}
+            {/* Vertical km checkpoint lines */}
+            <g stroke="#CBD5E1" strokeWidth="0.75" strokeDasharray="2 5">
+              {[0, 0.2, 0.4, 0.6, 0.8, 1.0].map((t) => {
+                const x = MARGIN + t * (W - MARGIN * 2);
+                return <line key={t} x1={x} y1="0" x2={x} y2={H} />;
+              })}
             </g>
 
             {/* Dead zone bands */}
@@ -1021,8 +938,8 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 7,
-                        padding: "1px 0",
+                        gap: 8,
+                        padding: "2px 0",
                       }}
                     >
                       <span
@@ -1035,13 +952,10 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
                           flexShrink: 0,
                         }}
                       />
-                      <span
-                        style={{ color: "rgba(255,255,255,0.6)", minWidth: 40 }}
-                      >
+                      <span style={{ color: "rgba(255,255,255,0.75)", minWidth: 44 }}>
                         {p.label}
                       </span>
-                      <span style={{ fontWeight: 700 }}>{sig}%</span>
-                      <span style={{ color, fontSize: 10 }}>{label}</span>
+                      <span style={{ color, fontWeight: 700, fontSize: 11 }}>{label}</span>
                     </div>
                   );
                 })}
@@ -1109,13 +1023,13 @@ function ForecastChart({ forecast }: { forecast: RouteForecast }) {
             letterSpacing: "0.06em",
           }}
         >
-          Signal zones
+          What the colours mean
         </span>
         {[
-          { color: "#16A34A", label: "Strong ≥65%", dot: true },
-          { color: "#D97706", label: "Moderate 35–65%", dot: true },
-          { color: "#DC2626", label: "Weak <35%", dot: true },
-          { color: "#D03737", label: "Dead zone", dot: false },
+          { color: "#16A34A", label: "Good signal", dot: true },
+          { color: "#D97706", label: "Fair signal", dot: true },
+          { color: "#DC2626", label: "Poor signal", dot: true },
+          { color: "#D03737", label: "No signal zone", dot: false },
         ].map(({ color, label, dot }) => (
           <div
             key={label}

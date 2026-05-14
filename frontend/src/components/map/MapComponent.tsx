@@ -137,21 +137,19 @@ const MapEvents: React.FC<{
   return null;
 };
 
-const MapSizeObserver: React.FC<{
-  map: LeafletMap | null;
-  isFullscreen: boolean;
-}> = ({ map, isFullscreen }) => {
-  useEffect(() => {
-    if (!map) return;
+// Sits inside MapContainer — watches the container element for any size change
+// and immediately tells Leaflet to re-tile. Works for fullscreen, window resize, etc.
+const MapResizer: React.FC = () => {
+  const map = useMap();
 
-    const handle = window.requestAnimationFrame(() => {
+  useEffect(() => {
+    const container = map.getContainer();
+    const observer = new ResizeObserver(() => {
       map.invalidateSize();
     });
-
-    return () => {
-      window.cancelAnimationFrame(handle);
-    };
-  }, [map, isFullscreen]);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [map]);
 
   return null;
 };
@@ -331,10 +329,7 @@ const MapComponent: React.FC<Props> = ({
   return (
     <FullscreenMap>
       {({ isFullscreen, mapContainerStyle, toggleFullscreen }) => (
-        <div
-          className={isFullscreen ? 'relative h-screen w-screen' : 'relative'}
-          style={isFullscreen ? { height: '100vh', width: '100vw' } : undefined}
-        >
+        <div className="relative">
           {/* ── Top-right controls ───────────────────────────────────────────── */}
           <MapControls
             mapType={mapType}
@@ -364,8 +359,6 @@ const MapComponent: React.FC<Props> = ({
             onRouteCoordinates={onRouteCoordinates}
           />
 
-          <MapSizeObserver map={mapInstance} isFullscreen={isFullscreen} />
-
           {/* ── Map ──────────────────────────────────────────────────────────── */}
           <MapContainer
             center={[mapCenter.lat, mapCenter.lng]}
@@ -377,6 +370,7 @@ const MapComponent: React.FC<Props> = ({
             zoomControl={false}
             className="z-0 w-full"
           >
+            <MapResizer />
             <TileLayer
               url={tileLayer.url}
               attribution={tileLayer.attribution}
@@ -395,7 +389,6 @@ const MapComponent: React.FC<Props> = ({
               <HeatmapLayer towers={filteredTowers} zoom={mapZoom} />
             )}
             {showLayers && visibleTowers.map((tower) => {
-              const colors = PROVIDER_COLORS[tower.provider];
               const isHovered = hoveredTowerId === tower.id;
 
               return (

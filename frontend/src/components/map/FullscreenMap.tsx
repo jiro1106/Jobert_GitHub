@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface FullscreenMapRenderArgs {
   isFullscreen: boolean;
@@ -12,41 +12,42 @@ interface Props {
 }
 
 const FullscreenMap: React.FC<Props> = ({ normalHeight = '500px', children }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    if (isFullscreen) {
-      document.body.style.overflow = 'hidden';
-    }
-    return () => {
-      document.body.style.overflow = previousOverflow;
+    const onFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
     };
-  }, [isFullscreen]);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
 
-  const mapContainerStyle = useMemo(
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen();
+    }
+  }, []);
+
+  // Use explicit 100vh so the Leaflet MapContainer always gets a real pixel height.
+  const mapContainerStyle = useMemo<React.CSSProperties>(
     () => ({
       width: '100%',
-      height: isFullscreen ? '100%' : normalHeight,
+      height: isFullscreen ? '100vh' : normalHeight,
     }),
-    [isFullscreen, normalHeight]
+    [isFullscreen, normalHeight],
   );
 
   return (
-    <div className={isFullscreen ? 'fixed inset-0 z-50' : 'relative'}>
-      <div
-        className={`relative overflow-hidden shadow-md transition-all duration-300 ${
-          isFullscreen
-            ? 'h-full w-full rounded-none bg-white'
-            : 'rounded-xl border border-gray-100'
-        }`}
-      >
-        {children({
-          isFullscreen,
-          mapContainerStyle,
-          toggleFullscreen: () => setIsFullscreen((value) => !value),
-        })}
-      </div>
+    <div
+      ref={containerRef}
+      className={`relative overflow-hidden ${
+        isFullscreen ? 'bg-white' : 'rounded-xl border border-gray-100 shadow-md'
+      }`}
+    >
+      {children({ isFullscreen, mapContainerStyle, toggleFullscreen })}
     </div>
   );
 };
