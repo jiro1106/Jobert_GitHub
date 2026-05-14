@@ -4,9 +4,10 @@
  */
 
 /** Backend mounts landing + signal routes under `/api` (see backend/main.py). Port matches backend/config/settings.py default. */
-const API_BASE_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ||
-  'http://localhost:8001/api';
+const _rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '');
+const API_BASE_URL = _rawApiUrl
+  ? _rawApiUrl.replace(/\/api$/, '') + '/api'
+  : 'http://localhost:8001/api';
 
 // ---------------------------------------------------------------------------
 // Session-level TTL cache — prevents redundant fetches for the same route

@@ -1,5 +1,8 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8001/api";
+// The MCP bridge is mounted at the root level (/mcp/...), not under /api.
+// VITE_API_URL should be the bare origin e.g. http://localhost:8001
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:8001"
+).replace(/\/$/, "").replace(/\/api$/, "");
 
 export async function callMcpTool(name: string, args: Record<string, unknown>) {
   const response = await fetch(`${API_BASE_URL}/mcp/tools/call`, {
