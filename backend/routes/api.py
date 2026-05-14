@@ -119,6 +119,30 @@ async def get_route_forecast(request: RouteAnalysisRequest):
 
         forecast = transform_route_analysis_to_forecast(raw_analysis)
 
+        # Build detailed debug breakdown of how route points were classified
+        best_by_pt: dict[int, dict] = {}
+        for m in closest_towers:
+            pt = int(m.get("route_point_order", 0))
+            cur = best_by_pt.get(pt)
+            if cur is None or m.get("signal_score", 0) > cur.get("signal_score", 0):
+                best_by_pt[pt] = m
+
+        pts_no_match = 0
+        pts_in_range = 0
+        pts_weak = 0
+        pts_ok = 0
+        for idx, p in enumerate(route_pts, 1):
+            pt = int(p.get("point_order", idx))
+            m = best_by_pt.get(pt)
+            if m is None:
+                pts_no_match += 1
+            elif m.get("is_within_estimated_range"):
+                pts_in_range += 1
+            elif float(m.get("signal_score", 0)) < 20:
+                pts_weak += 1
+            else:
+                pts_ok += 1
+
         # Attach a debug block so the frontend can surface it without server logs
         forecast["_debug"] = {
             "towers_in_bbox":       towers_found,
@@ -127,6 +151,10 @@ async def get_route_forecast(request: RouteAnalysisRequest):
             "weak_patch_count":     len(weak_segs),
             "provider_keys":        list(provider_scores.keys()),
             "osrm_fallback":        len(route_pts) <= 2,
+            "pts_no_tower_match":   pts_no_match,
+            "pts_in_range":         pts_in_range,
+            "pts_weak_score":       pts_weak,
+            "pts_ok_score":         pts_ok,
         }
 
         missing = [k for k in ("summary", "recommendation", "gaps", "providers") if not forecast.get(k)]

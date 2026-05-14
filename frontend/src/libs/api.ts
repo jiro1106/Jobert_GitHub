@@ -435,7 +435,7 @@ export async function getRouteForecast(
       origin: { latitude: originLat, longitude: originLng, name: originName },
       destination: { latitude: destLat, longitude: destLng, name: destName },
       route_points: routePoints,
-      radius_km: 5.0,
+      radius_km: 10.0,
     }),
     signal: options?.signal,
   });

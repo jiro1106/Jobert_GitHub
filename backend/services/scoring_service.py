@@ -108,25 +108,22 @@ def apply_report_adjustments(
 def detect_weak_segments(
     route_points: list[dict[str, Any]],
     closest_towers: list[dict[str, Any]],
-    weak_threshold: float = 20.0,   # score <20 = truly no usable signal (calibrated for 10km max_distance)
-    merge_gap_km: float = 2.0,
+    weak_threshold: float = 20.0,   # score <20 = truly no usable signal
+    merge_gap_km: float = 1.5,      # consecutive weak points within 1.5 km merge into one patch
 ) -> list[dict[str, Any]]:
     """
     Identify contiguous signal-gap patches along the route.
 
-    Gap boundary logic (radius-aware):
-      - A tower "covers" a stretch of the route from (tower_km - range_km) to
-        (tower_km + range_km), where tower_km is the cumulative km of the matched
-        route point and range_km = tower_range_meters / 1000.
-      - A route point is in a dead zone if its best-match signal_score < 12
-        OR no tower is matched at all.
-      - A route point is patchy if its best-match signal_score is in [12, weak_threshold).
-      - The dead/patchy gap starts at the km where the last covering tower's
-        radius ENDS, and stops where the next covering tower's radius BEGINS.
-        If range_meters is unknown, the boundary is the route-point km itself.
+    Each route point is checked against its best tower match:
+      - If no tower matched at all → dead zone
+      - If best tower scored < weak_threshold AND is NOT within estimated range → weak/patchy
+      - If best tower IS within estimated range (coverage circle covers the point) → covered, skip
 
-    Consecutive weak positions within merge_gap_km are merged into one patch.
-    Patches are sorted by size (largest gap first).
+    Consecutive weak points within `merge_gap_km` of each other are merged into
+    one patch. Each patch's km_start/km_end comes from the ACTUAL positions of
+    the first/last weak point in the run — no artificial inflation.
+
+    Returns patches sorted by size (largest gap first).
     """
     from .tower_matching_service import haversine_distance_m  # local import
 
@@ -150,71 +147,32 @@ def detect_weak_segments(
         if cur is None or match.get("signal_score", 0.0) > cur.get("signal_score", 0.0):
             best_match_by_point[pt] = match
 
-    # ── Tag each weak route position with RADIUS-AWARE km boundaries ─────────
-    # Each entry: (km_start_of_gap, km_end_of_gap, lat, lng, score, reason, provider)
-    tagged: list[tuple[float, float, float, float, float, str, str | None]] = []
-
-    def _tag_position(
-        route_km: float,
-        t_lat: float,
-        t_lng: float,
-        score: float,
-        reason: str,
-        provider: str | None,
-        range_m: float | None,
-    ) -> None:
-        """
-        Calculate the gap boundary around this weak point.
-        If the tower has a known range, the gap boundary starts where the
-        tower's coverage circle ENDS relative to the route direction:
-          gap_start_km = route_km - (range_m / 1000)   ← trailing edge
-          gap_end_km   = route_km + (range_m / 1000)   ← leading edge of next
-        For no-tower situations (range unknown) we fall back to a small padding.
-        """
-        if range_m and range_m > 0:
-            r_km = range_m / 1000.0
-            # The route is not covered from (route_km - r_km) to (route_km + r_km)?
-            # No — the gap is the MISSING coverage. The gap STARTS at the edge
-            # where the previous tower's range ran out (route_km - r_km at best),
-            # and ENDS at the edge where the next tower's range begins.
-            # Since we only know this single weak point, use ±r_km as the gap span.
-            gap_start = max(0.0, route_km - r_km)
-            gap_end   = route_km + r_km
-        else:
-            # No range data — use route_km as the centre with ±0.5 km padding
-            gap_start = max(0.0, route_km - 0.5)
-            gap_end   = route_km + 0.5
-        tagged.append((gap_start, gap_end, t_lat, t_lng, score, reason, provider))
+    # ── Tag each weak route position at its EXACT km ─────────────────────────
+    # Each entry: (km, lat, lng, score, reason, provider)
+    tagged: list[tuple[float, float, float, float, str, str | None]] = []
 
     if sparse_mode:
-        # Sparse: use tower's own lat/lng and range to compute position from origin
         for pt, match in best_match_by_point.items():
             score = float(match.get("signal_score", 0.0))
+            # If the point is within the tower's estimated range, it's COVERED — skip
+            if match.get("is_within_estimated_range"):
+                continue
             if score >= weak_threshold:
                 continue
             t_lat = float(match.get("tower_latitude") or match.get("tower_lat") or origin_lat)
             t_lng = float(match.get("tower_longitude") or match.get("tower_lon") or origin_lng)
             route_km = haversine_distance_m(origin_lat, origin_lng, t_lat, t_lng) / 1000.0
-            range_m  = match.get("tower_range_meters")
-            no_tower = match.get("provider_name") is None
-            reason = (
-                "No nearby tower — this stretch has no coverage."
-                if no_tower
-                else "Tower signal is below usable threshold at this location."
-            )
-            _tag_position(route_km, t_lat, t_lng, score, reason,
-                          match.get("provider_name"), range_m)
+            reason = "Tower signal is below usable threshold."
+            tagged.append((route_km, t_lat, t_lng, score, reason, match.get("provider_name")))
 
-        # Route points with NO match at all
         for idx, point in enumerate(route_points, start=1):
             pt = int(point.get("point_order", idx))
             if pt not in best_match_by_point:
                 p_lat = float(point.get("latitude", origin_lat))
                 p_lng = float(point.get("longitude", origin_lng))
                 route_km = haversine_distance_m(origin_lat, origin_lng, p_lat, p_lng) / 1000.0
-                _tag_position(route_km, p_lat, p_lng, 0.0,
-                               "No nearby tower — this stretch has no coverage.",
-                               None, None)
+                tagged.append((route_km, p_lat, p_lng, 0.0,
+                                "No nearby tower found.", None))
     else:
         # Rich mode: route points have real accumulated distances
         for idx, point in enumerate(route_points, start=1):
@@ -225,54 +183,81 @@ def detect_weak_segments(
             match = best_match_by_point.get(pt)
 
             if match is None:
-                _tag_position(route_km, lat, lng, 0.0,
-                               "No nearby tower — this stretch has no coverage.",
-                               None, None)
-            elif float(match.get("signal_score", 0.0)) < weak_threshold:
-                _tag_position(
-                    route_km, lat, lng,
-                    float(match.get("signal_score", 0.0)),
-                    "Tower signal is below usable threshold at this location.",
-                    match.get("provider_name"),
-                    match.get("tower_range_meters"),
-                )
+                tagged.append((route_km, lat, lng, 0.0,
+                               "No nearby tower found.", None))
+            else:
+                # If the tower's coverage circle reaches this point, it's covered
+                if match.get("is_within_estimated_range"):
+                    continue
+                if float(match.get("signal_score", 0.0)) < weak_threshold:
+                    tagged.append((route_km, lat, lng,
+                                   float(match.get("signal_score", 0.0)),
+                                   "Tower signal is below usable threshold.",
+                                   match.get("provider_name")))
 
     if not tagged:
         return []
 
-    # Sort by gap_start km
+    # Sort by km
     tagged.sort(key=lambda t: t[0])
 
-    # ── Merge overlapping/adjacent gap windows into patches ───────────────────
+    # ── Merge consecutive weak points into patches ────────────────────────────
+    # A patch's width = distance from its first weak point to its last.
     patches: list[dict[str, Any]] = []
-    p_start, p_end, p_lats, p_lngs, p_scores, p_reason, p_provider = (
-        tagged[0][0], tagged[0][1],
-        [tagged[0][2]], [tagged[0][3]], [tagged[0][4]],
-        tagged[0][5], tagged[0][6],
+    p_km, p_lats, p_lngs, p_scores, p_reason, p_provider = (
+        tagged[0][0],
+        [tagged[0][1]], [tagged[0][2]], [tagged[0][3]],
+        tagged[0][4], tagged[0][5],
     )
+    p_km_end = tagged[0][0]
 
     for i in range(1, len(tagged)):
-        g_start, g_end, lat, lng, score, reason, provider = tagged[i]
-        # Merge if windows overlap or are within merge_gap_km of each other
-        if g_start <= p_end + merge_gap_km:
-            p_end = max(p_end, g_end)
+        km, lat, lng, score, reason, provider = tagged[i]
+        if km - p_km_end <= merge_gap_km:
             p_lats.append(lat)
             p_lngs.append(lng)
             p_scores.append(score)
+            p_km_end = km
             if "No nearby tower" in reason:
                 p_reason = reason
         else:
-            _flush_patch(patches, p_start, p_end,
+            _flush_patch(patches, p_km, p_km_end,
                          p_lats, p_lngs, p_scores, p_reason, p_provider)
-            p_start, p_end, p_lats, p_lngs, p_scores, p_reason, p_provider = (
-                g_start, g_end, [lat], [lng], [score], reason, provider,
+            p_km, p_lats, p_lngs, p_scores, p_reason, p_provider = (
+                km, [lat], [lng], [score], reason, provider,
             )
+            p_km_end = km
 
-    _flush_patch(patches, p_start, p_end,
+    _flush_patch(patches, p_km, p_km_end,
                  p_lats, p_lngs, p_scores, p_reason, p_provider)
 
     # Sort by patch size descending — largest gap first
     patches.sort(key=lambda p: p["km_end"] - p["km_start"], reverse=True)
+
+    # ── Debug: print breakdown of how route points were classified ────────────
+    total_pts = len(route_points)
+    no_match = sum(1 for idx, p in enumerate(route_points, 1)
+                   if int(p.get("point_order", idx)) not in best_match_by_point)
+    in_range = sum(1 for m in best_match_by_point.values()
+                   if m.get("is_within_estimated_range"))
+    below_thresh = sum(1 for m in best_match_by_point.values()
+                       if not m.get("is_within_estimated_range")
+                       and float(m.get("signal_score", 0)) < weak_threshold)
+    above_thresh = sum(1 for m in best_match_by_point.values()
+                       if not m.get("is_within_estimated_range")
+                       and float(m.get("signal_score", 0)) >= weak_threshold)
+    print(
+        f"[gap-debug] total_route_pts={total_pts}, "
+        f"no_tower_match={no_match}, "
+        f"in_range(covered)={in_range}, "
+        f"score<{weak_threshold}(weak)={below_thresh}, "
+        f"score>={weak_threshold}(ok)={above_thresh}, "
+        f"tagged_weak_pts={len(tagged)}, "
+        f"final_patches={len(patches)}"
+    )
+    for p in patches[:5]:
+        print(f"  patch: km {p['km_start']} → {p['km_end']} ({round(p['km_end']-p['km_start'],1)} km), score={p['signal_score']}, reason={p['reason']}")
+
     return patches
 
 
