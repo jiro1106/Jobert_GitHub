@@ -63,6 +63,8 @@ Then edit `.env` and add your actual credentials:
 
 ```powershell
 python main.py
+
+python -m backend.main
 ```
 
 The server will start at: **http://localhost:8000**

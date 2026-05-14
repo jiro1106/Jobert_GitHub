@@ -13,8 +13,8 @@ import {
   type SignalAnalysisResponse,
   type NearbyTowersResponse,
   type SignalReport,
-} from '../lib/api';
-import { useApi } from '../lib/useApi';
+} from '../libs/api';
+import { useApi } from '../libs/useApi';
 
 export default function ApiTestComponent() {
   const [latitude, setLatitude] = useState('14.5995');
