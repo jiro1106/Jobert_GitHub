@@ -3,6 +3,8 @@ import { MOCK_USE_CASES } from "../../types/coverage";
 import type { ChatMessage } from "../../types/coverage";
 import { submitChatMessage } from "../../libs/api";
 import { PROVIDERS } from "../../constants/providers";
+import type { RouteCoords } from "../../pages/LandingPage";
+import type { RouteForecast } from "../../types/coverage";
 
 const QUICK_PROMPTS = [
   "Which SIM for Baguio trip?",
@@ -19,7 +21,15 @@ const INITIAL_CHAT: ChatMessage[] = [
   },
 ];
 
-export default function UseCasesSection() {
+interface UseCasesSectionProps {
+  activeRoute: RouteCoords | null;
+  forecast: RouteForecast | null;
+}
+
+export default function UseCasesSection({
+  activeRoute,
+  forecast,
+}: UseCasesSectionProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -43,7 +53,31 @@ export default function UseCasesSection() {
     setIsTyping(true);
 
     try {
-      const res = await submitChatMessage(text, conversationId);
+      const chatContext = activeRoute
+  ? {
+      origin: {
+        latitude: activeRoute.originLat,
+        longitude: activeRoute.originLng,
+        name: activeRoute.originName,
+      },
+      destination: {
+        latitude: activeRoute.destLat,
+        longitude: activeRoute.destLng,
+        name: activeRoute.destName,
+      },
+      radius_km: 5.0,
+
+      // This is the UI-ready forecast, useful for explanation-style prompts.
+      current_forecast: forecast,
+
+      // This keeps compatibility with backend agents that look for current_analysis_result.
+      current_analysis_result: forecast,
+    }
+  : {
+      radius_km: 5.0,
+    };
+
+const res = await submitChatMessage(text, conversationId, chatContext);
       if (res.conversation_id) {
         setConversationId(res.conversation_id);
       }
