@@ -495,16 +495,21 @@ export async function getPlatformStats(): Promise<StatsResponse> {
  */
 export async function submitChatMessage(
   message: string,
-  conversationId?: string
+  conversationId?: string,
+  context?: Record<string, any>
 ): Promise<ChatResponseData> {
   const response = await fetch(`${API_BASE_URL}/chat`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       message,
-      context: conversationId ? { conversation_id: conversationId } : undefined,
+      conversation_id: conversationId,
+      context: {
+        conversation_id: conversationId,
+        ...(context || {}),
+      },
     }),
   });
 

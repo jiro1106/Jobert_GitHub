@@ -32,7 +32,7 @@ export default function HomePage() {
       <div className="page">
         <MapSection onRouteActive={handleRouteActive} onForecastReady={setForecast} />
         <ProviderScoreboardSection activeRoute={activeRoute} forecast={forecast} />
-        <UseCasesSection />
+        <UseCasesSection activeRoute={activeRoute} forecast={forecast} />
         <CommunitySection />
       </div>
     </main>
