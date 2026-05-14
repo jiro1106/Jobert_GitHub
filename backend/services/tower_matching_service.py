@@ -145,9 +145,8 @@ def score_tower_match(
     radio: str | None = None,
     samples: int | None = None,
 ) -> float:
-    # closer + within range + better radio/samples = higher score (0-100)
-
-    max_distance_meters = 5000.0
+    # Scores 0–100. Calibrated for Philippine rural/suburban tower spacing (avg 5–8 km).
+    max_distance_meters = 10_000.0
 
     distance_component = max(
         0.0,
@@ -162,7 +161,8 @@ def score_tower_match(
     else:
         range_component = 0.0
 
-    proximity_factor = 1.0 / (1.0 + distance_meters / 1500.0)
+    # Half-life 3000 m (was 1500 m) — rural towers 3–5 km away are still usable
+    proximity_factor = 1.0 / (1.0 + distance_meters / 3000.0)
 
     base_score = (
         distance_component * 45.0
@@ -244,7 +244,7 @@ def build_closest_tower_match(
 def find_closest_towers(
     route_points: list[dict[str, Any]],
     candidate_towers: list[dict[str, Any]],
-    max_distance_km: float = 5.0,
+    max_distance_km: float = 10.0,
     per_point_limit: int = 10,
 ) -> list[dict[str, Any]]:
     max_distance_meters = max_distance_km * 1000.0

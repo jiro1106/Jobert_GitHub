@@ -501,7 +501,7 @@ function RouteSidebar({
         <div className="panel-head">
           <div className="panel-title">
             <WarningIcon />
-            Largest signal gaps
+            Major signal gaps
           </div>
           <span
             style={{
@@ -510,7 +510,7 @@ function RouteSidebar({
               color: "var(--ink-4)",
             }}
           >
-            {gaps.length} gap{gaps.length !== 1 ? "s" : ""} detected
+            {Math.min(gaps.length, 3)} major gap{Math.min(gaps.length, 3) !== 1 ? "s" : ""}
           </span>
         </div>
 
@@ -533,6 +533,7 @@ function RouteSidebar({
           </div>
         )}
       </div>
+
 
     </div>
   );

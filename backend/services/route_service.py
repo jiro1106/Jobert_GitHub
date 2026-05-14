@@ -294,7 +294,7 @@ def analyze_route(
     origin: dict[str, float],
     destination: dict[str, float],
     route_points: list[dict[str, float]] | None = None,
-    radius_km: float = 5.0,
+    radius_km: float = 10.0,   # raised to match find_closest_towers 10km default
 ) -> dict[str, Any]:
     # evaluates EVERY route point, not just start/end
 

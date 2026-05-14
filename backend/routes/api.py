@@ -15,9 +15,18 @@ from ..services.response_transformer import (
     calculate_stats_aggregate,
     get_provider_scores_for_route,
 )
+from ..services.cache_service import clear_cache
 from ..utils.helpers import success_response
 
 router = APIRouter()
+
+
+# ============= Cache Management =============
+@router.post("/cache/clear")
+async def clear_analysis_cache():
+    """Clear the in-memory analysis cache. Call this after backend logic changes."""
+    clear_cache()
+    return {"status": "ok", "message": "Analysis cache cleared."}
 
 
 # ============= Signal Analysis Routes =============
@@ -72,7 +81,9 @@ async def get_nearby_reports(
 @router.post("/route/forecast")
 async def get_route_forecast(request: RouteAnalysisRequest):
     """
-    Get route forecast with provider recommendations and signal gaps
+    Get route forecast with provider recommendations and signal gaps.
+    Includes a _debug block in the response so the client can verify
+    that towers were actually loaded along the route.
     """
     try:
         raw_analysis = analyze_route(
@@ -92,19 +103,37 @@ async def get_route_forecast(request: RouteAnalysisRequest):
             radius_km=request.radius_km,
         )
 
-        # Debug: log key analysis stats
-        provider_scores = raw_analysis.get("provider_scores", {})
-        towers_found = raw_analysis.get("candidate_tower_count", 0)
-        print(f"[route/forecast] towers={towers_found}, providers={list(provider_scores.keys())}, points={len(raw_analysis.get('route_points', []))}")
+        towers_found      = raw_analysis.get("candidate_tower_count", 0)
+        closest_towers    = raw_analysis.get("closest_towers", [])
+        route_pts         = raw_analysis.get("route_points", [])
+        provider_scores   = raw_analysis.get("provider_scores", {})
+        weak_segs         = raw_analysis.get("weak_segments", [])
+
+        print(
+            f"[route/forecast] towers_in_bbox={towers_found}, "
+            f"matched_tower_links={len(closest_towers)}, "
+            f"route_points={len(route_pts)}, "
+            f"weak_patches={len(weak_segs)}, "
+            f"providers={list(provider_scores.keys())}"
+        )
 
         forecast = transform_route_analysis_to_forecast(raw_analysis)
 
-        # Validate shape before sending to frontend
+        # Attach a debug block so the frontend can surface it without server logs
+        forecast["_debug"] = {
+            "towers_in_bbox":       towers_found,
+            "matched_tower_links":  len(closest_towers),
+            "route_point_count":    len(route_pts),
+            "weak_patch_count":     len(weak_segs),
+            "provider_keys":        list(provider_scores.keys()),
+            "osrm_fallback":        len(route_pts) <= 2,
+        }
+
         missing = [k for k in ("summary", "recommendation", "gaps", "providers") if not forecast.get(k)]
         if missing:
-            print(f"[route/forecast] WARNING - transformer returned incomplete shape, missing: {missing}")
+            print(f"[route/forecast] WARNING - incomplete shape, missing: {missing}")
         else:
-            print(f"[route/forecast] OK - strongSignalPct={forecast['summary'].get('strongSignalPct')}, best={forecast['recommendation'].get('name')}")
+            print(f"[route/forecast] OK - strongSignalPct={forecast['summary'].get('strongSignalPct')}, gaps={len(forecast.get('gaps', []))}")
 
         return success_response(
             data=forecast,
